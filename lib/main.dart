@@ -1,13 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:busguide/core/theme/app_theme.dart';
+import 'package:busguide/user/supabase/supabase_config.dart';
+
+// Import Screens
+import 'package:busguide/user/screens/splash_screen.dart';
+import 'package:busguide/user/screens/login.dart';
+import 'package:busguide/user/screens/register.dart';
 import 'package:busguide/user/screens/home.dart';
-import 'package:busguide/user/screens/halte.dart';
-import 'package:busguide/user/screens/navigasi.dart';
-import 'package:busguide/user/screens/rekomendasi.dart';
+import 'package:busguide/user/screens/perizinan.dart';
 import 'package:busguide/user/screens/profil.dart';
 import 'package:busguide/user/templates/bottom_navbar.dart';
 
-void main() {
+// Placeholder Admin Dashboard
+class AdminDashboardPlaceholder extends StatelessWidget {
+  const AdminDashboardPlaceholder({super.key});
+  
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: Text('Halaman Admin Dashboard')),
+    );
+  }
+}
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SupabaseConfig.initialize(); // Supabase Initialization
+  
   runApp(const MyApp());
 }
 
@@ -20,7 +39,16 @@ class MyApp extends StatelessWidget {
       title: 'BusGuide',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const MainScreen(),
+      // ─── PENGATURAN ROUTER TERPUSAT ───
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const SplashScreen(),
+        '/perizinan': (context) => const PerizinanPage(),
+        '/login': (context) => const LoginPage(),
+        '/register': (context) => const RegisterPage(),
+        '/user': (context) => const MainScreen(), // Menggunakan MainScreen agar BottomNavbar tetap ada
+        '/admin': (context) => const AdminDashboardPlaceholder(),
+      },
     );
   }
 }
@@ -36,11 +64,11 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
-    HomeScreen(),
+    const HomeScreen(),
     const Scaffold(body: Center(child: Text('Halte'))),
     const Scaffold(body: Center(child: Text('Navigasi'))),
     const Scaffold(body: Center(child: Text('Rekomendasi'))),
-    const Scaffold(body: Center(child: Text('Profil'))),
+    const ProfilScreen(),
   ];
 
   @override

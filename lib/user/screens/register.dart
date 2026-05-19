@@ -1,0 +1,337 @@
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../supabase/auth_service.dart';
+
+// ==========================================
+// 1. CLASS UTAMA
+// ==========================================
+class RegisterPage extends StatefulWidget {
+  const RegisterPage({super.key});
+
+  @override
+  State<RegisterPage> createState() => _RegisterPageState();
+}
+
+class _RegisterPageState extends State<RegisterPage> {
+  final _namaController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _authService = AuthService();
+  
+  bool _isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
+
+  Future<void> _handleRegister() async {
+    if (_namaController.text.isEmpty || _emailController.text.isEmpty || 
+        _passwordController.text.isEmpty || _confirmPasswordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Semua field harus diisi')),
+      );
+      return;
+    }
+
+    if (_passwordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password dan Konfirmasi Password tidak cocok')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _authService.register(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        nama: _namaController.text.trim(),
+      );
+      
+      // Langsung melakukan login setelah registrasi berhasil
+      final result = await _authService.login(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registrasi berhasil! Selamat datang.')),
+        );
+        
+        final role = result['role'];
+        if (role == 'admin') {
+          Navigator.pushReplacementNamed(context, '/admin');
+        } else {
+          Navigator.pushReplacementNamed(context, '/user');
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _namaController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F7FB),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Container(
+            padding: const EdgeInsets.all(32.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _BagianHeader(),
+                const SizedBox(height: 24),
+                
+                _FieldInput(
+                  controller: _namaController,
+                  hintText: 'Nama lengkap',
+                  icon: Icons.person_outline,
+                ),
+                const SizedBox(height: 16),
+
+                _FieldInput(
+                  controller: _emailController,
+                  hintText: 'Email',
+                  icon: Icons.email_outlined,
+                  keyboardType: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: 16),
+                
+                _FieldPassword(
+                  controller: _passwordController,
+                  hintText: 'Password',
+                  obscureText: _obscurePassword,
+                  onToggle: () => setState(() => _obscurePassword = !_obscurePassword),
+                ),
+                const SizedBox(height: 16),
+
+                _FieldPassword(
+                  controller: _confirmPasswordController,
+                  hintText: 'Konfirmasi password',
+                  obscureText: _obscureConfirm,
+                  onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                ),
+                const SizedBox(height: 24),
+                
+                _TombolDaftar(isLoading: _isLoading, onPressed: _isLoading ? null : _handleRegister),
+                const _BagianDivider(),
+                const _TombolGoogle(),
+                const SizedBox(height: 24),
+                const _BagianMasuk(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 2. WIDGET-WIDGET PENDUKUNG (DI FILE YANG SAMA)
+// ==========================================
+
+class _BagianHeader extends StatelessWidget {
+  const _BagianHeader({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        CircleAvatar(
+          radius: 32,
+          backgroundColor: const Color(0xFF0D6EFD),
+          child: const Icon(Icons.directions_bus, size: 32, color: Colors.white),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Buat akun baru',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Lengkapi data untuk mulai perjalanan Anda.',
+          style: TextStyle(color: Colors.grey),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+}
+
+class _FieldInput extends StatelessWidget {
+  final TextEditingController controller;
+  final String hintText;
+  final IconData icon;
+  final TextInputType? keyboardType;
+
+  const _FieldInput({
+    super.key,
+    required this.controller,
+    required this.hintText,
+    required this.icon,
+    this.keyboardType,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon),
+        hintText: hintText,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+      ),
+    );
+  }
+}
+
+class _FieldPassword extends StatelessWidget {
+  final TextEditingController controller;
+  final String hintText;
+  final bool obscureText;
+  final VoidCallback onToggle;
+
+  const _FieldPassword({
+    super.key,
+    required this.controller,
+    required this.hintText,
+    required this.obscureText,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      decoration: InputDecoration(
+        prefixIcon: const Icon(Icons.lock_outline),
+        hintText: hintText,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+        suffixIcon: IconButton(
+          icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility),
+          onPressed: onToggle,
+        ),
+      ),
+    );
+  }
+}
+
+class _TombolDaftar extends StatelessWidget {
+  final bool isLoading;
+  final VoidCallback? onPressed;
+
+  const _TombolDaftar({super.key, required this.isLoading, this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF0D6EFD),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        child: isLoading 
+            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white))
+            : const Text('Daftar', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+}
+
+class _BagianDivider extends StatelessWidget {
+  const _BagianDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 24.0),
+      child: Row(
+        children: [
+          Expanded(child: Divider()),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0),
+            child: Text('atau', style: TextStyle(color: Colors.grey)),
+          ),
+          Expanded(child: Divider()),
+        ],
+      ),
+    );
+  }
+}
+
+class _TombolGoogle extends StatelessWidget {
+  const _TombolGoogle({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: OutlinedButton.icon(
+        onPressed: () {},
+        icon: const Icon(Icons.g_mobiledata, size: 28, color: Colors.red),
+        label: const Text('Daftar dengan Google', style: TextStyle(color: Colors.black87)),
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: Colors.grey.shade300),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+    );
+  }
+}
+
+class _BagianMasuk extends StatelessWidget {
+  const _BagianMasuk({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text('Sudah punya akun? '),
+        GestureDetector(
+          onTap: () {
+            Navigator.pushReplacementNamed(context, '/login');
+          },
+          child: const Text('Masuk', style: TextStyle(color: Color(0xFF0D6EFD), fontWeight: FontWeight.bold)),
+        ),
+      ],
+    );
+  }
+}
