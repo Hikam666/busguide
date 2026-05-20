@@ -1,5 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// ==========================================
+// SERVICE: WISATA
+// ==========================================
 class WisataService {
   final _supabase = Supabase.instance.client;
 

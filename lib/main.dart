@@ -9,6 +9,9 @@ import 'package:busguide/user/screens/register.dart';
 import 'package:busguide/user/screens/home.dart';
 import 'package:busguide/user/screens/perizinan.dart';
 import 'package:busguide/user/screens/profil.dart';
+import 'package:busguide/user/screens/rekomendasi.dart';
+import 'package:busguide/user/screens/detail_wisata.dart';
+import 'package:busguide/user/screens/detail_po_bus.dart';
 import 'package:busguide/user/templates/bottom_navbar.dart';
 
 // Placeholder Admin Dashboard
@@ -25,8 +28,13 @@ class AdminDashboardPlaceholder extends StatelessWidget {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SupabaseConfig.initialize(); // Supabase Initialization
   
+  try {
+    await SupabaseConfig.initialize(); // Supabase Initialization
+  } catch (e) {
+    debugPrint('Gagal inisialisasi Supabase: $e');
+  }
+
   runApp(const MyApp());
 }
 
@@ -49,6 +57,22 @@ class MyApp extends StatelessWidget {
         '/user': (context) => const MainScreen(), // Menggunakan MainScreen agar BottomNavbar tetap ada
         '/admin': (context) => const AdminDashboardPlaceholder(),
       },
+      onGenerateRoute: (settings) {
+        // Menangani rute yang membawa argumen (parameter ID)
+        if (settings.name == '/detail-wisata') {
+          final idWisata = settings.arguments as int;
+          return MaterialPageRoute(
+            builder: (context) => DetailWisataScreen(idWisata: idWisata),
+          );
+        }
+        if (settings.name == '/detail-po-bus') {
+          final idPoBus = settings.arguments as int;
+          return MaterialPageRoute(
+            builder: (context) => DetailPoBusScreen(idPoBus: idPoBus),
+          );
+        }
+        return null; // Kembalikan null jika rute tidak cocok
+      },
     );
   }
 }
@@ -67,7 +91,7 @@ class _MainScreenState extends State<MainScreen> {
     const HomeScreen(),
     const Scaffold(body: Center(child: Text('Halte'))),
     const Scaffold(body: Center(child: Text('Navigasi'))),
-    const Scaffold(body: Center(child: Text('Rekomendasi'))),
+    const RekomendasiScreen(),
     const ProfilScreen(),
   ];
 

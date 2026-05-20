@@ -122,7 +122,7 @@ class _LogoApp extends StatelessWidget {
       width: 90,
       height: 90,
       decoration: BoxDecoration(
-        color: const Color(0xFF4A9EF5),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
@@ -132,10 +132,9 @@ class _LogoApp extends StatelessWidget {
           ),
         ],
       ),
-      child: const Icon(
-        Icons.directions_bus_rounded,
-        color: Colors.white,
-        size: 48,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Image.asset('assets/img/logo.png', fit: BoxFit.cover),
       ),
     );
   }

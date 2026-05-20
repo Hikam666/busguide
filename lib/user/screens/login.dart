@@ -127,10 +127,14 @@ class _BagianHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        CircleAvatar(
-          radius: 32,
-          backgroundColor: const Color(0xFF0D6EFD),
-          child: const Icon(Icons.directions_bus, size: 32, color: Colors.white),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Image.asset(
+            'assets/img/logo.png',
+            width: 64,
+            height: 64,
+            fit: BoxFit.cover,
+          ),
         ),
         const SizedBox(height: 16),
         const Text(
@@ -264,7 +268,7 @@ class _TombolGoogle extends StatelessWidget {
       height: 48,
       child: OutlinedButton.icon(
         onPressed: () {},
-        icon: const Icon(Icons.g_mobiledata, size: 28, color: Colors.red),
+        icon: Image.asset('assets/img/google.jpg', width: 24, height: 24),
         label: const Text('Masuk dengan Google', style: TextStyle(color: Colors.black87)),
         style: OutlinedButton.styleFrom(
           side: BorderSide(color: Colors.grey.shade300),
