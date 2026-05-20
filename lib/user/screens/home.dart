@@ -12,25 +12,29 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const AppHeader(title: 'BusGuide', showBack: true),
+      appBar: AppHeader(
+          title: 'BusGuide',
+          showNotification: true,
+          hasUnreadNotification: true,
+          onNotificationTap: () {
+            // Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+          },
+        ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Search Bar ──────────────────────────────────────
             _SearchBar(),
             const SizedBox(height: 20),
 
-            // ── Quick Actions ────────────────────────────────────
             _QuickActions(),
             const SizedBox(height: 20),
 
-            // ── Traffic Banner ───────────────────────────────────
             _TrafficBanner(),
             const SizedBox(height: 28),
 
-            // ── Riwayat Perjalanan ───────────────────────────────
+
             _SectionHeader(
               title: 'Riwayat perjalanan',
               actionLabel: 'Lihat Semua',

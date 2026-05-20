@@ -2,33 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 
-/// Standard app header / AppBar untuk BusGuide.
-///
-/// Usage:
-/// ```dart
-/// Scaffold(
-///   appBar: AppHeader(title: 'BusGuide'),
-/// )
-/// ```
-///
-/// Atau dengan back button:
-/// ```dart
-/// AppHeader(title: 'Detail Halte', showBack: true)
-/// ```
 class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   final String title;
-
-  /// Tampilkan tombol back. Default: otomatis (true jika ada route sebelumnya).
   final bool? showBack;
-
-  /// Aksi kustom saat back ditekan. Default: Navigator.pop.
   final VoidCallback? onBack;
-
-  /// Widget di sisi kanan (trailing actions).
   final List<Widget>? actions;
-
-  /// Tampilkan divider bawah.
   final bool showDivider;
+
+  final bool showNotification;
+  final VoidCallback? onNotificationTap;
+  final bool hasUnreadNotification;
 
   const AppHeader({
     super.key,
@@ -37,6 +20,9 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
     this.onBack,
     this.actions,
     this.showDivider = true,
+    this.showNotification = false,     
+    this.onNotificationTap,
+    this.hasUnreadNotification = false,
   });
 
   @override
@@ -56,26 +42,24 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
         color: AppColors.surface,
         child: Column(
           children: [
-            // Status bar spacer
             SizedBox(height: MediaQuery.of(context).padding.top),
 
-            // Header bar
             SizedBox(
               height: 56,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Row(
                   children: [
-                    // Back button
                     if (displayBack)
                       _HeaderIconButton(
-                        icon: Icons.arrow_back_ios_new_rounded,
+                        icon: Icons.chevron_left_rounded,
+                        iconSize: 28,
                         onTap: onBack ?? () => Navigator.of(context).pop(),
                       )
                     else
                       const SizedBox(width: 48),
 
-                    // Title (centered)
+                    // Title (selalu center)
                     Expanded(
                       child: Text(
                         title,
@@ -91,21 +75,21 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                       ),
                     ),
 
-                    // Trailing actions
+                    // Kanan: actions custom > bell > spacer
                     if (actions != null && actions!.isNotEmpty)
                       Row(mainAxisSize: MainAxisSize.min, children: actions!)
+                    else if (showNotification)
+                      _NotificationButton(
+                        hasUnread: hasUnreadNotification,
+                        onTap: onNotificationTap ?? () {},
+                      )
                     else
-                      // Default: 3-dots menu placeholder (sesuai design)
-                      _HeaderIconButton(
-                        icon: Icons.more_vert_rounded,
-                        onTap: () {}, // hook to your menu
-                      ),
+                      const SizedBox(width: 48),
                   ],
                 ),
               ),
             ),
 
-            // Divider
             if (showDivider)
               const Divider(height: 1, thickness: 1, color: AppColors.border),
           ],
@@ -115,11 +99,14 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-class _HeaderIconButton extends StatelessWidget {
-  final IconData icon;
+class _NotificationButton extends StatelessWidget {
+  final bool hasUnread;
   final VoidCallback onTap;
 
-  const _HeaderIconButton({required this.icon, required this.onTap});
+  const _NotificationButton({
+    required this.hasUnread,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +119,56 @@ class _HeaderIconButton extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
-          child: Icon(icon, size: 20, color: AppColors.textPrimary),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Icon(Icons.notifications_outlined,
+                  size: 22, color: AppColors.textPrimary),
+              if (hasUnread)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.surface, width: 1.5),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final double iconSize;
+
+  const _HeaderIconButton({
+    required this.icon,
+    required this.onTap,
+    this.iconSize = 20,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Icon(icon, size: iconSize, color: AppColors.textPrimary),
         ),
       ),
     );

@@ -331,7 +331,6 @@ class _MenuTile extends StatelessWidget {
 
 // ── Widget Helper: Divider ───────────────────────────────────
 class _Divider extends StatelessWidget {
-  // ✅ Tidak perlu const constructor karena tidak dipakai sebagai const
   _Divider({super.key});
 
   @override
@@ -346,9 +345,7 @@ class _Divider extends StatelessWidget {
   }
 }
 
-// ── Widget Helper: Permission Chip ──────────────────────────
 class _PermissionChip extends StatelessWidget {
-  // ✅ Tidak pakai const constructor
   _PermissionChip({required this.icon, required this.label});
 
   final IconData icon;
