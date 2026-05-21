@@ -65,7 +65,7 @@ class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
       _halteRute = await _halteService.getHalteByRute(idRute);
 
       if (_titikPolyline.isNotEmpty && mounted) {
-        _mapController.move(_titikPolyline.first, 15);
+        _lokasiSaatIni = _titikPolyline.first;
       }
 
       _mulaiLacakGps();
@@ -108,6 +108,8 @@ class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
         
         _updateHalteBerikutnya(pos);
       }
+    }, onError: (e) {
+      debugPrint("GPS Stream error: $e");
     });
   }
 
@@ -279,9 +281,19 @@ class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Naik bus $ruteNama', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                                    Text(
+                                      'Naik bus $ruteNama', 
+                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                      maxLines: 1, 
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                     const SizedBox(height: 2),
-                                    Text('Arah $namaTujuan', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                                    Text(
+                                      'Arah $namaTujuan', 
+                                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                                      maxLines: 1, 
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ],
                                 ),
                               ),

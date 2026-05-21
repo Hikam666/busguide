@@ -75,7 +75,10 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
 
   Future<void> _dapatkanLokasiAwal() async {
     try {
-      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 5), // Batas waktu maksimal 5 detik
+      );
       setState(() {
         _lokasiSaatIni = LatLng(pos.latitude, pos.longitude);
       });

@@ -85,8 +85,37 @@ class _DeskripsiPerizinan extends StatelessWidget {
   }
 }
 
-class _TombolIzinkan extends StatelessWidget {
-  const _TombolIzinkan({super.key});
+class _TombolIzinkan extends StatefulWidget {
+  const _TombolIzinkan();
+
+  @override
+  State<_TombolIzinkan> createState() => _TombolIzinkanState();
+}
+
+class _TombolIzinkanState extends State<_TombolIzinkan> {
+  bool _isLoading = false;
+
+  Future<void> _mintaIzinLokasi() async {
+    setState(() => _isLoading = true);
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+        if (mounted) Navigator.pushReplacementNamed(context, '/login');
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Izin ditolak. Aplikasi butuh lokasi untuk navigasi!')),
+          );
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,24 +123,19 @@ class _TombolIzinkan extends StatelessWidget {
       width: double.infinity,
       height: 48,
       child: ElevatedButton(
-        onPressed: () {
-          // TODO: Implementasi logika meminta izin lokasi (contoh: permission_handler)
-          Navigator.pushReplacementNamed(context, '/login');
-        },
+        onPressed: _isLoading ? null : _mintaIzinLokasi,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF0D6EFD),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
         ),
-        child: const Text(
-          'Izinkan Lokasi',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        child: _isLoading
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+            : const Text(
+                'Izinkan Lokasi',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
       ),
     );
   }
