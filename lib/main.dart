@@ -7,6 +7,8 @@ import 'package:busguide/user/screens/splash_screen.dart';
 import 'package:busguide/user/screens/login.dart';
 import 'package:busguide/user/screens/register.dart';
 import 'package:busguide/user/screens/halte.dart';
+import 'package:busguide/user/screens/navigasi.dart';
+import 'package:busguide/user/screens/navigasi_aktif.dart';
 import 'package:busguide/user/screens/home.dart';
 import 'package:busguide/user/screens/perizinan.dart';
 import 'package:busguide/user/screens/profil.dart';
@@ -53,6 +55,8 @@ class MyApp extends StatelessWidget {
         '/perizinan': (context) => const PerizinanPage(),
         '/login': (context) => const LoginPage(),
         '/register': (context) => const RegisterPage(),
+        '/navigasi': (context) => const NavigasiScreen(),
+        '/navigasi_aktif': (context) => const NavigasiAktifScreen(),
         '/user': (context) =>
             const MainScreen(), // Menggunakan MainScreen agar BottomNavbar tetap ada
         '/admin': (context) => const AdminDashboardPlaceholder(),
@@ -90,7 +94,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = [
     const HomeScreen(),
     const HalteScreen(),
-    const Scaffold(body: Center(child: Text('Navigasi'))),
+    const NavigasiScreen(),
     const RekomendasiScreen(),
     const ProfilScreen(),
   ];

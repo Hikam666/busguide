@@ -1,12 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:busguide/core/theme/app_colors.dart';
 import 'package:busguide/user/templates/header.dart';
+import '../supabase/perjalanan_service.dart';
+import '../supabase/wisata_service.dart';
 
 // ==========================================
 // 1. CLASS UTAMA
 // ==========================================
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final _perjalananService = PerjalananService();
+  final _wisataService = WisataService();
+
+  List<Map<String, dynamic>> _riwayatList = [];
+  List<Map<String, dynamic>> _rekomendasiList = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final riwayat = await _perjalananService.getRiwayatPerjalanan();
+      final wisata = await _wisataService.getSemuaWisata();
+
+      if (mounted) {
+        setState(() {
+          _riwayatList = riwayat.take(2).toList(); // Ambil maksimal 2 riwayat terakhir
+          _rekomendasiList = wisata.take(3).toList(); // Ambil maksimal 3 rekomendasi
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _formatDateTime(String? raw) {
+    if (raw == null) return '-';
+    try {
+      final dt = DateTime.parse(raw).toLocal();
+      final months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
+      final hour = dt.hour.toString().padLeft(2, '0');
+      final min = dt.minute.toString().padLeft(2, '0');
+      return '${dt.day} ${months[dt.month]} ${dt.year} • $hour:$min WIB';
+    } catch (_) {
+      return '-';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,24 +88,27 @@ class HomeScreen extends StatelessWidget {
             _SectionHeader(
               title: 'Riwayat perjalanan',
               actionLabel: 'Lihat Semua',
-              onAction: () {},
+              onAction: () {
+                Navigator.pushNamed(context, '/riwayat'); // Jika punya route riwayat
+              },
             ),
             const SizedBox(height: 12),
-            _TripCard(
-              busCode: 'B12',
-              fromHalte: 'Halte Blok M',
-              toHalte: 'Halte Monas',
-              time: '08:30 AM',
-              isActive: true,
-            ),
-            const SizedBox(height: 10),
-            _TripCard(
-              busCode: 'S21',
-              fromHalte: 'Halte Karet',
-              toHalte: 'Halte Lebak Bulus',
-              time: 'Kemarin, 17:15',
-              isActive: false,
-            ),
+            
+            if (_isLoading)
+              const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+            else if (_riwayatList.isEmpty)
+              const Text('Belum ada riwayat perjalanan.', style: TextStyle(color: AppColors.textSecondary))
+            else
+              ..._riwayatList.map((riwayat) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _TripCard(
+                  busCode: riwayat['rute']?['kode'] ?? '-',
+                  fromHalte: riwayat['halte_asal']?['nama'] ?? '-',
+                  toHalte: riwayat['halte_tujuan']?['nama'] ?? '-',
+                  time: _formatDateTime(riwayat['waktu_mulai']),
+                  isActive: riwayat['status'] == 'aktif',
+                ),
+              )),
             const SizedBox(height: 28),
 
             // ── Rekomendasi ──────────────────────────────────────
@@ -69,7 +122,10 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            _RekomendasiList(),
+            if (_isLoading)
+              const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+            else
+              _RekomendasiList(data: _rekomendasiList),
             const SizedBox(height: 20),
           ],
         ),
@@ -525,124 +581,112 @@ class _RouteStops extends StatelessWidget {
 // ── Rekomendasi List ──────────────────────────────────────────────────────────
 
 class _RekomendasiList extends StatelessWidget {
-  final List<_RekomendasiItem> _items = const [
-    _RekomendasiItem(
-      imageUrl: 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=400',
-      title: 'Wisata Kota Lama',
-      description: 'Rute khusus akhir pekan dengan bus wisata tingkat.',
-      actionLabel: 'Lihat Detail',
-    ),
-    _RekomendasiItem(
-      imageUrl: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400',
-      title: 'Panduan Inte...',
-      description: 'Cara mudah transit kereta komuter.',
-      actionLabel: 'Baca Panduan',
-    ),
-  ];
+  final List<Map<String, dynamic>> data;
+
+  const _RekomendasiList({required this.data});
 
   @override
   Widget build(BuildContext context) {
+    if (data.isEmpty) return const Text('Belum ada rekomendasi.', style: TextStyle(color: AppColors.textSecondary));
+
     return SizedBox(
       height: 250, // Diperbesar dari 230 agar teks tidak overflow
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         clipBehavior: Clip.none,
-        itemCount: _items.length,
+        itemCount: data.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, index) => _RekomendasiCard(item: _items[index]),
+        itemBuilder: (context, index) => _RekomendasiCard(item: data[index]),
       ),
     );
   }
 }
 
-class _RekomendasiItem {
-  final String imageUrl;
-  final String title;
-  final String description;
-  final String actionLabel;
-
-  const _RekomendasiItem({
-    required this.imageUrl,
-    required this.title,
-    required this.description,
-    required this.actionLabel,
-  });
-}
-
 class _RekomendasiCard extends StatelessWidget {
-  final _RekomendasiItem item;
+  final Map<String, dynamic> item;
 
   const _RekomendasiCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
     final cardWidth = MediaQuery.of(context).size.width * 0.62;
+    final fotoUrl = item['foto_url'] as String?;
 
-    return Container(
-      width: cardWidth,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      clipBehavior: Clip.hardEdge,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image
-          SizedBox(
-            height: 120,
-            width: double.infinity,
-            child: Image.network(
-              item.imageUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                color: AppColors.surfaceVariant,
-                child: const Icon(Icons.image_outlined, color: AppColors.border, size: 40),
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushNamed(context, '/detail-wisata', arguments: item['id']);
+      },
+      child: Container(
+        width: cardWidth,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image
+            SizedBox(
+              height: 120,
+              width: double.infinity,
+              child: fotoUrl != null
+                  ? Image.network(
+                      fotoUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: AppColors.surfaceVariant,
+                        child: const Icon(Icons.image_outlined, color: AppColors.border, size: 40),
+                      ),
+                    )
+                  : Container(
+                      color: AppColors.surfaceVariant,
+                      child: const Icon(Icons.image_outlined, color: AppColors.border, size: 40),
+                    ),
+            ),
+            // Content
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      item['nama'] ?? '-',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      item['deskripsi'] ?? '-',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                        height: 1.4,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Text(
+                      'Lihat Detail →',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          // Content
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    item.title,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    item.description,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                      height: 1.4,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    '${item.actionLabel} →',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

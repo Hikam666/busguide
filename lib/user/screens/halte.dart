@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../../core/theme/app_colors.dart';
 import '../supabase/halte_service.dart';
 import '../templates/header.dart';
@@ -15,11 +19,15 @@ class HalteScreen extends StatefulWidget {
 class _HalteScreenState extends State<HalteScreen> {
   final HalteService _halteService = HalteService();
   final TextEditingController _searchController = TextEditingController();
+  final MapController _mapController = MapController();
 
   List<Map<String, dynamic>> _semuaHalte = [];
-  List<Map<String, dynamic>> _halteTerfilter = [];
-  Position? _posisiUser;
+  List<Map<String, dynamic>> _halteTerdekat = [];
+  LatLng _titikPusat = const LatLng(-7.9797, 112.6304); // Default Malang
+  String _labelLokasi = 'Mencari lokasi...';
+  bool _pakaiGps = true;
   bool _isLoading = true;
+  bool _isLoadingLokasi = false;
   String _errorMessage = '';
 
   @override
@@ -42,34 +50,17 @@ class _HalteScreenState extends State<HalteScreen> {
     });
 
     try {
-      _posisiUser = await _dapatkanLokasi();
-
-      final halte = await _halteService.getHalteTerdekat(
-        latitude: _posisiUser?.latitude ?? 0,
-        longitude: _posisiUser?.longitude ?? 0,
-      );
-
-      // Hitung jarak untuk setiap halte
-      final halteWithJarak = halte.map((h) {
-        final jarak = _hitungJarak(
-          _posisiUser?.latitude ?? 0,
-          _posisiUser?.longitude ?? 0,
-          (h['latitude'] as num).toDouble(),
-          (h['longitude'] as num).toDouble(),
-        );
-        return {...h, 'jarak_meter': jarak.round()};
-      }).toList();
-
-      // Urutkan berdasarkan jarak terdekat
-      halteWithJarak.sort(
-          (a, b) => (a['jarak_meter'] as int).compareTo(b['jarak_meter'] as int));
+      // Ambil semua data halte sekali saja
+      final halte = await _halteService.getSemuaHalte();
 
       if (mounted) {
         setState(() {
-          _semuaHalte = halteWithJarak;
-          _halteTerfilter = halteWithJarak;
+          _semuaHalte = halte;
           _isLoading = false;
         });
+        
+        // Setelah data halte siap, dapatkan lokasi user
+        await _dapatkanLokasi();
       }
     } catch (e) {
       if (mounted) {
@@ -82,23 +73,42 @@ class _HalteScreenState extends State<HalteScreen> {
   }
 
   // ── Dapatkan lokasi user ─────────────────────────────────
-  Future<Position?> _dapatkanLokasi() async {
+  Future<void> _dapatkanLokasi() async {
+    setState(() => _isLoadingLokasi = true);
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return null;
+      if (!serviceEnabled) throw Exception('GPS mati');
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) return null;
+        if (permission == LocationPermission.denied) throw Exception('Izin ditolak');
       }
-      if (permission == LocationPermission.deniedForever) return null;
+      if (permission == LocationPermission.deniedForever) throw Exception('Izin ditolak permanen');
 
-      return await Geolocator.getCurrentPosition(
+      final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
+
+      if (mounted) {
+        setState(() {
+          _titikPusat = LatLng(position.latitude, position.longitude);
+          _labelLokasi = 'Lokasi Anda saat ini';
+          _pakaiGps = true;
+          _searchController.clear();
+        });
+        _mapController.move(_titikPusat, 14);
+        _hitungHalteTerdekat();
+      }
     } catch (_) {
-      return null;
+      if (mounted) {
+        setState(() {
+          _labelLokasi = 'Gagal mengambil GPS';
+          _pakaiGps = false;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingLokasi = false);
     }
   }
 
@@ -119,23 +129,66 @@ class _HalteScreenState extends State<HalteScreen> {
     return '$menit Menit';
   }
 
-  // ── Filter pencarian ─────────────────────────────────────
-  void _onSearch(String query) {
+  // ── Hitung halte terdekat berdasarkan titik pusat ────────
+  void _hitungHalteTerdekat() {
+    if (_semuaHalte.isEmpty) return;
+
+    final halteWithJarak = _semuaHalte.map((h) {
+      final jarak = _hitungJarak(
+        _titikPusat.latitude,
+        _titikPusat.longitude,
+        (h['latitude'] as num).toDouble(),
+        (h['longitude'] as num).toDouble(),
+      );
+      return {...h, 'jarak_meter': jarak.round()};
+    }).toList();
+
+    halteWithJarak.sort(
+        (a, b) => (a['jarak_meter'] as int).compareTo(b['jarak_meter'] as int));
+
     setState(() {
-      if (query.isEmpty) {
-        _halteTerfilter = _semuaHalte;
-      } else {
-        _halteTerfilter = _semuaHalte
-            .where((h) =>
-                (h['nama'] as String)
-                    .toLowerCase()
-                    .contains(query.toLowerCase()) ||
-                (h['alamat'] as String? ?? '')
-                    .toLowerCase()
-                    .contains(query.toLowerCase()))
-            .toList();
-      }
+      _halteTerdekat = halteWithJarak.take(5).toList();
     });
+  }
+
+  // ── Pencarian Lokasi (Geocoding API Nominatim) ───────────
+  Future<void> _cariLokasi(String query) async {
+    if (query.trim().isEmpty) return;
+    setState(() => _isLoadingLokasi = true);
+
+    try {
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/search'
+        '?q=${Uri.encodeComponent(query)}&format=json&limit=1',
+      );
+      final response = await http.get(uri, headers: {
+        'User-Agent': 'BusGuideApp/1.0',
+      });
+
+      final results = jsonDecode(response.body) as List;
+      if (results.isEmpty) {
+        if (mounted) setState(() => _labelLokasi = 'Lokasi tidak ditemukan');
+        return;
+      }
+
+      final lat = double.parse(results[0]['lat']);
+      final lon = double.parse(results[0]['lon']);
+      final displayName = results[0]['display_name'] as String;
+
+      if (mounted) {
+        setState(() {
+          _titikPusat = LatLng(lat, lon);
+          _labelLokasi = displayName.split(',').take(2).join(',').trim();
+          _pakaiGps = false;
+        });
+        _mapController.move(_titikPusat, 14);
+        _hitungHalteTerdekat();
+      }
+    } catch (e) {
+      if (mounted) setState(() => _labelLokasi = 'Gagal mencari lokasi');
+    } finally {
+      if (mounted) setState(() => _isLoadingLokasi = false);
+    }
   }
 
   // ── Buka navigasi Google Maps ────────────────────────────
@@ -208,7 +261,7 @@ class _HalteScreenState extends State<HalteScreen> {
                       Expanded(
                         child: TextField(
                           controller: _searchController,
-                          onChanged: _onSearch,
+                          onSubmitted: _cariLokasi,
                           style: const TextStyle(
                               fontSize: 14, color: Color(0xFF1A1A2E)),
                           decoration: const InputDecoration(
@@ -219,18 +272,27 @@ class _HalteScreenState extends State<HalteScreen> {
                             contentPadding: EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 14),
                           ),
+                          textInputAction: TextInputAction.search,
                         ),
                       ),
-                      Container(
-                        margin: const EdgeInsets.all(6),
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(8),
+                      GestureDetector(
+                        onTap: _isLoadingLokasi ? null : _dapatkanLokasi,
+                        child: Container(
+                          margin: const EdgeInsets.all(6),
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: _pakaiGps ? AppColors.primary : const Color(0xFFE5E7EB),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: _isLoadingLokasi
+                              ? const Padding(
+                                  padding: EdgeInsets.all(10),
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                )
+                              : Icon(Icons.my_location_rounded,
+                                  color: _pakaiGps ? Colors.white : const Color(0xFF6B7280), size: 18),
                         ),
-                        child: const Icon(Icons.my_location_rounded,
-                            color: Colors.white, size: 18),
                       ),
                     ],
                   ),
@@ -246,14 +308,15 @@ class _HalteScreenState extends State<HalteScreen> {
                         Icon(Icons.location_on_outlined,
                             size: 14, color: AppColors.primary),
                         const SizedBox(width: 4),
-                        Text(
-                          _posisiUser != null
-                              ? 'Lokasi Anda saat ini'
-                              : 'Lokasi tidak tersedia',
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w500),
+                        Expanded(
+                          child: Text(
+                            _labelLokasi,
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w500),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),
@@ -276,60 +339,43 @@ class _HalteScreenState extends State<HalteScreen> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: Stack(
+              child: FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: _titikPusat,
+                  initialZoom: 14.0,
+                ),
                 children: [
-                  // Grid background map placeholder
-                  CustomPaint(
-                    size: const Size(double.infinity, 180),
-                    painter: _MapGridPainter(),
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.busguide.app',
                   ),
-                  // Ikon pin tengah
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.location_on_rounded,
-                            color: AppColors.primary, size: 36),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.1),
-                                blurRadius: 4,
-                              ),
-                            ],
+                  MarkerLayer(
+                    markers: [
+                      ..._semuaHalte.map((h) {
+                        return Marker(
+                          point: LatLng((h['latitude'] as num).toDouble(), (h['longitude'] as num).toDouble()),
+                          width: 32,
+                          height: 32,
+                          child: Icon(
+                            Icons.location_on_rounded,
+                            color: AppColors.primary,
+                            size: 24,
                           ),
-                          child: Text(
-                            'Lokasi Anda',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Drag handle bawah
-                  Positioned(
-                    bottom: 8,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: Container(
+                        );
+                      }),
+                      // User/Center Marker
+                      Marker(
+                        point: _titikPusat,
                         width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          borderRadius: BorderRadius.circular(2),
+                        height: 40,
+                        child: Icon(
+                          Icons.my_location_rounded,
+                          color: const Color(0xFFDC2626),
+                          size: 28,
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -354,7 +400,7 @@ class _HalteScreenState extends State<HalteScreen> {
                 ),
                 if (!_isLoading)
                   Text(
-                    '${_halteTerfilter.length} halte',
+                    '${_halteTerdekat.length} halte',
                     style: const TextStyle(
                         fontSize: 12, color: Color(0xFF6B7280)),
                   ),
@@ -370,15 +416,15 @@ class _HalteScreenState extends State<HalteScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : _errorMessage.isNotEmpty
                     ? _buildErrorState()
-                    : _halteTerfilter.isEmpty
+                    : _halteTerdekat.isEmpty
                         ? _buildEmptyState()
                         : ListView.separated(
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                            itemCount: _halteTerfilter.length,
+                            itemCount: _halteTerdekat.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 12),
                             itemBuilder: (context, index) {
-                              final halte = _halteTerfilter[index];
+                              final halte = _halteTerdekat[index];
                               return _HalteCard(
                                 nama: halte['nama'] as String,
                                 alamat: halte['alamat'] as String? ?? '',
@@ -609,41 +655,4 @@ class _BusChip extends StatelessWidget {
       ),
     );
   }
-}
-
-// ── Painter: Grid Peta Placeholder ──────────────────────────
-class _MapGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFFB8DDF0)
-      ..strokeWidth = 0.8;
-
-    // Garis horizontal
-    for (double y = 0; y < size.height; y += 30) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-    // Garis vertikal
-    for (double x = 0; x < size.width; x += 30) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-
-    // Garis jalan utama (horizontal)
-    final jalanPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 6;
-    canvas.drawLine(
-        Offset(0, size.height * 0.45),
-        Offset(size.width, size.height * 0.45),
-        jalanPaint);
-
-    // Garis jalan utama (diagonal/miring sedikit)
-    canvas.drawLine(
-        Offset(size.width * 0.3, 0),
-        Offset(size.width * 0.5, size.height),
-        jalanPaint);
-  }
-
-  @override
-  bool shouldRepaint(_MapGridPainter oldDelegate) => false;
 }
