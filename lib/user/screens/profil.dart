@@ -4,6 +4,7 @@ import '../../core/theme/app_colors.dart';
 import '../supabase/auth_service.dart';
 import '../templates/header.dart';
 import 'riwayat_perjalanan.dart';
+import 'tentang_aplikasi.dart';
 
 class ProfilScreen extends StatefulWidget {
   const ProfilScreen({super.key});
@@ -15,7 +16,6 @@ class ProfilScreen extends StatefulWidget {
 class _ProfilScreenState extends State<ProfilScreen> {
   String _nama = '';
   String _email = '';
-  bool _isDarkMode = false;
   bool _isLoading = true;
 
   @override
@@ -234,11 +234,18 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
                           // Tentang Aplikasi
                           _MenuTile(
-                            icon: Icons.info_outline_rounded,
-                            label: 'Tentang Aplikasi',
-                            showArrow: true,
-                            onTap: () {},
-                          ),
+  icon: Icons.info_outline_rounded,
+  label: 'Tentang Aplikasi',
+  showArrow: true,
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const TentangAplikasiScreen(),
+      ),
+    );
+  },
+),
                         ],
                       ),
                     ),
