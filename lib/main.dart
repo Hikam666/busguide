@@ -6,6 +6,7 @@ import 'package:busguide/user/supabase/supabase_config.dart';
 import 'package:busguide/user/screens/splash_screen.dart';
 import 'package:busguide/user/screens/login.dart';
 import 'package:busguide/user/screens/register.dart';
+import 'package:busguide/user/screens/halte.dart';
 import 'package:busguide/user/screens/home.dart';
 import 'package:busguide/user/screens/perizinan.dart';
 import 'package:busguide/user/screens/profil.dart';
@@ -17,18 +18,16 @@ import 'package:busguide/user/templates/bottom_navbar.dart';
 // Placeholder Admin Dashboard
 class AdminDashboardPlaceholder extends StatelessWidget {
   const AdminDashboardPlaceholder({super.key});
-  
+
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Halaman Admin Dashboard')),
-    );
+    return const Scaffold(body: Center(child: Text('Halaman Admin Dashboard')));
   }
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   try {
     await SupabaseConfig.initialize(); // Supabase Initialization
   } catch (e) {
@@ -54,7 +53,8 @@ class MyApp extends StatelessWidget {
         '/perizinan': (context) => const PerizinanPage(),
         '/login': (context) => const LoginPage(),
         '/register': (context) => const RegisterPage(),
-        '/user': (context) => const MainScreen(), // Menggunakan MainScreen agar BottomNavbar tetap ada
+        '/user': (context) =>
+            const MainScreen(), // Menggunakan MainScreen agar BottomNavbar tetap ada
         '/admin': (context) => const AdminDashboardPlaceholder(),
       },
       onGenerateRoute: (settings) {
@@ -89,7 +89,7 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Widget> _screens = [
     const HomeScreen(),
-    const Scaffold(body: Center(child: Text('Halte'))),
+    const HalteScreen(),
     const Scaffold(body: Center(child: Text('Navigasi'))),
     const RekomendasiScreen(),
     const ProfilScreen(),
@@ -98,10 +98,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: BottomNavbar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
