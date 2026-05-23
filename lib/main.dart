@@ -1,21 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:busguide/core/theme/app_theme.dart';
-import 'package:busguide/user/supabase/supabase_config.dart';
+import 'package:busguide/models/supabase_config.dart';
 
 // Import Screens
-import 'package:busguide/user/screens/splash_screen.dart';
-import 'package:busguide/user/screens/login.dart';
-import 'package:busguide/user/screens/register.dart';
-import 'package:busguide/user/screens/halte.dart';
-import 'package:busguide/user/screens/navigasi.dart';
-import 'package:busguide/user/screens/navigasi_aktif.dart';
-import 'package:busguide/user/screens/home.dart';
-import 'package:busguide/user/screens/perizinan.dart';
-import 'package:busguide/user/screens/profil.dart';
-import 'package:busguide/user/screens/rekomendasi.dart';
-import 'package:busguide/user/screens/detail_wisata.dart';
-import 'package:busguide/user/screens/detail_po_bus.dart';
-import 'package:busguide/user/templates/bottom_navbar.dart';
+import 'package:busguide/views/splash_screen.dart';
+import 'package:busguide/views/login.dart';
+import 'package:busguide/views/register.dart';
+import 'package:busguide/views/halte.dart';
+import 'package:busguide/views/navigasi.dart';
+import 'package:busguide/views/navigasi_aktif.dart';
+import 'package:busguide/views/home.dart';
+import 'package:busguide/views/perizinan.dart';
+import 'package:busguide/views/profil.dart';
+import 'package:busguide/views/rekomendasi.dart';
+import 'package:busguide/views/detail_wisata.dart';
+import 'package:busguide/views/detail_po_bus.dart';
+import 'package:busguide/templates/bottom_navbar.dart';
+
+// Import Controllers (MVC Layer)
+import 'package:busguide/controllers/auth_controller.dart';
+import 'package:busguide/controllers/home_controller.dart';
+import 'package:busguide/controllers/halte_controller.dart';
+import 'package:busguide/controllers/navigasi_controller.dart';
+import 'package:busguide/controllers/navigasi_aktif_controller.dart';
+import 'package:busguide/controllers/rekomendasi_controller.dart';
+import 'package:busguide/controllers/profil_controller.dart';
+import 'package:busguide/controllers/riwayat_controller.dart';
+import 'package:busguide/controllers/detail_wisata_controller.dart';
+import 'package:busguide/controllers/detail_po_bus_controller.dart';
 
 // Placeholder Admin Dashboard
 class AdminDashboardPlaceholder extends StatelessWidget {
@@ -36,7 +49,25 @@ void main() async {
     debugPrint('Gagal inisialisasi Supabase: $e');
   }
 
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        // ── Global controllers ─────────────────────────────────
+        ChangeNotifierProvider(create: (_) => AuthController()),
+        ChangeNotifierProvider(create: (_) => HomeController()),
+        ChangeNotifierProvider(create: (_) => HalteController()),
+        ChangeNotifierProvider(create: (_) => NavigasiController()),
+        ChangeNotifierProvider(create: (_) => NavigasiAktifController()),
+        ChangeNotifierProvider(create: (_) => RekomendasiController()),
+        ChangeNotifierProvider(create: (_) => ProfilController()),
+        ChangeNotifierProvider(create: (_) => RiwayatController()),
+        // ── Per-screen controllers (lazy, dibuat baru tiap layar) ───
+        ChangeNotifierProvider(create: (_) => DetailWisataController()),
+        ChangeNotifierProvider(create: (_) => DetailPoBusController()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
