@@ -5,6 +5,7 @@ import '../controllers/profil_controller.dart';
 import '../templates/header.dart';
 import 'riwayat_perjalanan.dart';
 import 'tentang_aplikasi.dart';
+import 'edit_profil.dart';
 
 class ProfilScreen extends StatefulWidget {
   const ProfilScreen({super.key});
@@ -74,14 +75,19 @@ class _ProfilScreenState extends State<ProfilScreen> {
                       CircleAvatar(
                         radius: 48,
                         backgroundColor: AppColors.primary,
-                        child: Text(
-                          ctrl.initials,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        backgroundImage: ctrl.profile?.avatarUrl != null
+                            ? NetworkImage(ctrl.profile!.avatarUrl!)
+                            : null,
+                        child: ctrl.profile?.avatarUrl == null
+                            ? Text(
+                                ctrl.initials,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              )
+                            : null,
                       ),
                       Container(
                         width: 28,
@@ -120,7 +126,10 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   // ── Tombol Edit Profil ───────────────────
                   OutlinedButton(
                     onPressed: () {
-                      // navigasi ke halaman edit profil (tambahkan nanti)
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const EditProfilScreen()),
+                      );
                     },
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(color: AppColors.primary),

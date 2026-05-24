@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:busguide/models/auth_service.dart';
 import 'package:busguide/models/user_profile.dart';
@@ -41,5 +42,36 @@ class ProfilController extends ChangeNotifier {
     await _authService.logout();
     _profile = null;
     notifyListeners();
+  }
+  // ─── UPDATE PROFIL ───────────────────────────────────────
+  Future<void> updateProfile(String newNama) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await _authService.updateProfile(nama: newNama);
+      await loadProfile(); // Muat ulang profil dari server
+    } catch (e) {
+      _error = 'Gagal memperbarui profil: $e';
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ─── UPLOAD AVATAR ───────────────────────────────────────
+  Future<void> uploadAvatar(File imageFile) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await _authService.uploadAvatar(imageFile);
+      await loadProfile(); // Muat ulang dari server
+    } catch (e) {
+      _error = 'Gagal mengunggah foto: $e';
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 }
