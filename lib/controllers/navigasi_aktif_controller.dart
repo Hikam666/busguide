@@ -3,20 +3,24 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:async';
 
+import 'package:busguide/models/osrm_service.dart';
 import 'package:busguide/models/rute_service.dart';
 import 'package:busguide/models/perjalanan_service.dart';
 import 'package:busguide/models/halte_service.dart';
 import 'package:busguide/models/perjalanan.dart';
 import 'package:busguide/models/rute.dart';
 import 'package:busguide/models/halte.dart';
+import 'package:busguide/core/notification_service.dart';
 
 class NavigasiAktifController extends ChangeNotifier {
   final _ruteService = RuteService();
   final _perjalananService = PerjalananService();
   final _halteService = HalteService();
+  final _osrmService = OsrmService();
 
   bool _isLoading = true;
   bool _isAlmostThere = false;
+  bool _alarmTriggered = false;
 
   // Data Perjalanan
   Perjalanan? _perjalananAktif;
@@ -50,13 +54,18 @@ class NavigasiAktifController extends ChangeNotifier {
 
       _perjalananAktif = aktif;
 
-      // Load jalur polyline & halte dari rute
       final idRute = aktif.rute?.id;
       if (idRute != null) {
-        final titik = await _ruteService.getTitikRute(idRute);
-        _titikPolyline =
-            titik.map((t) => LatLng(t.latitude, t.longitude)).toList();
         _halteRute = await _halteService.getHalteByRute(idRute);
+        if (_halteRute.length >= 2) {
+          final waypoints = _halteRute
+              .map((h) => LatLng(h.halte.latitude, h.halte.longitude))
+              .toList();
+          final routeData = await _osrmService.getRoute(waypoints);
+          if (routeData != null) {
+            _titikPolyline = routeData.polyline;
+          }
+        }
       }
 
       if (_titikPolyline.isNotEmpty) {
@@ -98,6 +107,15 @@ class NavigasiAktifController extends ChangeNotifier {
 
         if (jarak < 500 && !_isAlmostThere) {
           _isAlmostThere = true;
+          // Trigger Notifikasi Alarm jika aktif
+          if (_perjalananAktif!.alarmAktif && !_alarmTriggered) {
+            _alarmTriggered = true;
+            NotificationService.showNotification(
+              id: 1,
+              title: 'Hampir Sampai!',
+              body: 'Siap-siap, Anda sudah dekat dengan ${halteTujuan.nama}.',
+            );
+          }
         }
       }
 
@@ -127,8 +145,8 @@ class NavigasiAktifController extends ChangeNotifier {
       }
     }
 
-    if (halteTerdekat != null &&
-        halteTerdekat.nama != _halteBerikutnya?.nama) {
+    if (halteTerdekat != null && halteTerdekat.nama != _halteBerikutnya?.nama) {
+      // Hanya update halte berikutnya di memori lokal
       _halteBerikutnya = halteTerdekat;
     }
   }
@@ -194,6 +212,12 @@ class NavigasiAktifController extends ChangeNotifier {
   Future<void> toggleAlarm() async {
     if (_perjalananAktif == null) return;
     final isAlarmActive = _perjalananAktif!.alarmAktif;
+    
+    if (!isAlarmActive) {
+      // Jika akan mengaktifkan alarm, pastikan punya izin
+      await NotificationService.requestPermission();
+    }
+
     await _perjalananService.toggleAlarm(
       idPerjalanan: _perjalananAktif!.id,
       aktif: !isAlarmActive,

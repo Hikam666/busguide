@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../core/theme/app_colors.dart';
 import '../controllers/halte_controller.dart';
+import '../controllers/navigasi_controller.dart';
+import '../models/halte.dart';
 import '../templates/header.dart';
+import 'home.dart';
 
 class HalteScreen extends StatefulWidget {
   const HalteScreen({super.key});
@@ -32,17 +34,25 @@ class _HalteScreenState extends State<HalteScreen> {
     super.dispose();
   }
 
-  Future<void> _navigasiKeHalte(double lat, double lon) async {
-    final uri = Uri.parse(
-        'https://www.google.com/maps/dir/?api=1&destination=$lat,$lon&travelmode=walking');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+  void _navigasiKeHalte(Halte halte) {
+    final navCtrl = context.read<NavigasiController>();
+    
+    // Pastikan initData NavigasiController sudah jalan, jika belum, get semuaHalte bisa kosong.
+    // Tetapi amannya, kita buat instance Lokasi Saat Ini langsung dari lokasiSaatIni controller.
+    final lokasiSaatIni = Halte.lokasiSaatIni(
+      navCtrl.lokasiSaatIni.latitude,
+      navCtrl.lokasiSaatIni.longitude,
+    );
+    
+    navCtrl.pilihHalteAsal(lokasiSaatIni);
+    navCtrl.pilihHalteTujuan(halte);
+
+    // Buka tab Navigasi
+    final switcher = TabSwitcher.maybeOf(context);
+    if (switcher != null) {
+      switcher.switchTab(2);
     } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Tidak dapat membuka Google Maps')),
-        );
-      }
+      Navigator.pushNamed(context, '/navigasi');
     }
   }
 
@@ -282,8 +292,7 @@ class _HalteScreenState extends State<HalteScreen> {
                                         .estimasiWaktu(halte.jarakMeter ?? 0),
                                     tipeList: ctrl.parseTipe(halte.tipe),
                                     warnaChip: ctrl.warnaChip,
-                                    onNavigasi: () => _navigasiKeHalte(
-                                        halte.latitude, halte.longitude),
+                                    onNavigasi: () => _navigasiKeHalte(halte),
                                   );
                                 },
                               ),

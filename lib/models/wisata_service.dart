@@ -32,7 +32,7 @@ class WisataService {
   Future<List<Rute>> getRuteByWisata(int idWisata) async {
     final data = await _supabase.from('rute_wisata').select('''
           rute(
-            id, kode, nama, estimasi_menit,
+            id, kode, nama,
             terminal_awal:halte!rute_terminal_awal_fkey(id, nama, tipe, alamat, latitude, longitude),
             terminal_akhir:halte!rute_terminal_akhir_fkey(id, nama, tipe, alamat, latitude, longitude)
           )

@@ -27,6 +27,6 @@ class RuteController extends ChangeNotifier {
   }
 
   int hitungEstimasiWaktu(Rute rute) {
-    return rute.estimasiMenit ?? 0;
+    return 25; // Default fallback (hardcoded until dynamic OSRM integration if needed)
   }
 }

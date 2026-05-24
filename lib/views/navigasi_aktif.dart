@@ -17,11 +17,26 @@ class NavigasiAktifScreen extends StatefulWidget {
 class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
   final _mapController = MapController();
 
+  LatLng? _lastMapCenter;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctrl = context.read<NavigasiAktifController>();
+      
+      // Auto-center map ketika lokasi berubah
+      ctrl.addListener(() {
+        if (!mounted) return;
+        final currentLoc = ctrl.lokasiSaatIni;
+        if (_lastMapCenter != currentLoc) {
+          _lastMapCenter = currentLoc;
+          try {
+            _mapController.move(currentLoc, _mapController.camera.zoom);
+          } catch (_) {} // Abaikan jika map belum siap
+        }
+      });
+
       ctrl.loadDataAktif().then((_) {
         if (ctrl.perjalananAktif == null && mounted) {
           Navigator.pop(context);

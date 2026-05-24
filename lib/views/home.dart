@@ -432,11 +432,10 @@ class _TripCard extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // Durasi jika ada
-                          if (perjalanan.riwayat.isNotEmpty &&
-                              perjalanan.riwayat.first.durasiLabel != null)
+                          // Jumlah halte yang dilewati jika ada
+                          if (perjalanan.riwayat.isNotEmpty)
                             Text(
-                              '⏱ ${perjalanan.riwayat.first.durasiLabel}',
+                              '📍 ${perjalanan.riwayat.length} halte dilewati',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: AppColors.textSecondary,

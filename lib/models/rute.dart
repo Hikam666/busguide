@@ -42,7 +42,6 @@ class Rute {
   final int id;
   final String kode;
   final String nama;
-  final int? estimasiMenit;
   final Halte? terminalAwal;
   final Halte? terminalAkhir;
 
@@ -50,7 +49,6 @@ class Rute {
     required this.id,
     required this.kode,
     required this.nama,
-    this.estimasiMenit,
     this.terminalAwal,
     this.terminalAkhir,
   });
@@ -59,9 +57,6 @@ class Rute {
         id: (map['id'] as num).toInt(),
         kode: map['kode'] as String,
         nama: map['nama'] as String,
-        estimasiMenit: map['estimasi_menit'] != null
-            ? (map['estimasi_menit'] as num).toInt()
-            : null,
         terminalAwal: map['terminal_awal'] != null
             ? Halte.fromMap(map['terminal_awal'] as Map<String, dynamic>)
             : null,

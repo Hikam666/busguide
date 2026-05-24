@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
 import '../core/theme/app_colors.dart';
+import '../core/notification_service.dart';
 import '../controllers/profil_controller.dart';
 import '../templates/header.dart';
 import 'riwayat_perjalanan.dart';
@@ -190,6 +192,30 @@ class _ProfilScreenState extends State<ProfilScreen> {
                           _MenuTile(
                             icon: Icons.shield_outlined,
                             label: 'Perizinan Aplikasi',
+                            onTap: () async {
+                              final currentContext = context;
+                              // Izin Lokasi
+                              LocationPermission locPerm = await Geolocator.checkPermission();
+                              if (locPerm == LocationPermission.denied) {
+                                locPerm = await Geolocator.requestPermission();
+                              }
+                              
+                              // Izin Notifikasi
+                              final notifGranted = await NotificationService.requestPermission();
+
+                              if (!currentContext.mounted) return;
+
+                              final locGranted = (locPerm == LocationPermission.whileInUse || locPerm == LocationPermission.always);
+                              if (locGranted && notifGranted) {
+                                ScaffoldMessenger.of(currentContext).showSnackBar(
+                                  const SnackBar(content: Text('Perizinan lokasi & notifikasi sudah aktif!'), backgroundColor: Colors.green),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(currentContext).showSnackBar(
+                                  const SnackBar(content: Text('Perizinan belum lengkap. Anda bisa mengaktifkannya via pengaturan perangkat.'), backgroundColor: Colors.red),
+                                );
+                              }
+                            },
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [

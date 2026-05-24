@@ -27,7 +27,7 @@ class PerjalananService {
         })
         .select('''
           id, status, waktu_mulai, waktu_selesai, alarm_aktif,
-          rute(id, kode, nama, estimasi_menit),
+          rute(id, kode, nama),
           halte_asal:halte!perjalanan_halte_asal_fkey(id, nama, tipe, alamat, latitude, longitude),
           halte_tujuan:halte!perjalanan_halte_tujuan_fkey(id, nama, tipe, alamat, latitude, longitude)
         ''')
@@ -44,7 +44,7 @@ class PerjalananService {
         .from('perjalanan')
         .select('''
           id, status, waktu_mulai, waktu_selesai, alarm_aktif,
-          rute(id, kode, nama, estimasi_menit),
+          rute(id, kode, nama),
           halte_asal:halte!perjalanan_halte_asal_fkey(id, nama, tipe, alamat, latitude, longitude),
           halte_tujuan:halte!perjalanan_halte_tujuan_fkey(id, nama, tipe, alamat, latitude, longitude)
         ''')
@@ -55,26 +55,30 @@ class PerjalananService {
     return Perjalanan.fromMap(data);
   }
 
-  // Selesaikan perjalanan + simpan ke riwayat
+  // Selesaikan perjalanan
   Future<void> selesaikanPerjalanan({
     required int idPerjalanan,
     required int durasiMenit,
-    int? estimasiBiaya,
-    String? catatan,
   }) async {
+    final waktuSelesai = DateTime.now().toIso8601String();
+    
+    // Update status perjalanan
     await _supabase.from('perjalanan').update({
       'status': 'selesai',
-      'waktu_selesai': DateTime.now().toIso8601String(),
+      'waktu_selesai': waktuSelesai,
       'alarm_aktif': false,
     }).eq('id', idPerjalanan);
 
+    // Sisipkan ke riwayat_perjalanan
     await _supabase.from('riwayat_perjalanan').insert({
       'id_perjalanan': idPerjalanan,
       'durasi_menit': durasiMenit,
-      'estimasi_biaya': estimasiBiaya,
-      'catatan': catatan,
+      'estimasi_biaya': null, // Opsional: logika perhitungan biaya
+      'catatan': 'Perjalanan diselesaikan.',
     });
   }
+
+
 
   // Batalkan perjalanan
   Future<void> batalkanPerjalanan(int idPerjalanan) async {
@@ -107,7 +111,7 @@ class PerjalananService {
         .from('perjalanan')
         .select('''
           id, status, waktu_mulai, waktu_selesai, alarm_aktif,
-          rute(id, kode, nama, estimasi_menit),
+          rute(id, kode, nama),
           halte_asal:halte!perjalanan_halte_asal_fkey(id, nama, tipe, alamat, latitude, longitude),
           halte_tujuan:halte!perjalanan_halte_tujuan_fkey(id, nama, tipe, alamat, latitude, longitude),
           riwayat_perjalanan(id, id_perjalanan, durasi_menit, estimasi_biaya, catatan)
@@ -130,7 +134,7 @@ class PerjalananService {
           id, status, waktu_mulai, waktu_selesai, alarm_aktif,
           halte_asal:halte!perjalanan_halte_asal_fkey(id, nama, tipe, alamat, latitude, longitude),
           halte_tujuan:halte!perjalanan_halte_tujuan_fkey(id, nama, tipe, alamat, latitude, longitude),
-          rute:rute!perjalanan_id_rute_fkey(id, kode, nama, estimasi_menit),
+          rute:rute!perjalanan_id_rute_fkey(id, kode, nama),
           riwayat_perjalanan(id, id_perjalanan, durasi_menit, estimasi_biaya, catatan)
         ''').eq('id_pengguna', userId);
 

@@ -7,7 +7,7 @@ class RuteService {
   // Ambil semua rute
   Future<List<Rute>> getSemuaRute() async {
     final data = await _supabase.from('rute').select('''
-          id, kode, nama, estimasi_menit,
+          id, kode, nama,
           terminal_awal:halte!rute_terminal_awal_fkey(id, nama, tipe, alamat, latitude, longitude),
           terminal_akhir:halte!rute_terminal_akhir_fkey(id, nama, tipe, alamat, latitude, longitude)
         ''').order('kode');
@@ -19,7 +19,7 @@ class RuteService {
   // Ambil detail satu rute
   Future<Rute> getDetailRute(int idRute) async {
     final data = await _supabase.from('rute').select('''
-          id, kode, nama, estimasi_menit,
+          id, kode, nama,
           terminal_awal:halte!rute_terminal_awal_fkey(id, nama, tipe, alamat, latitude, longitude),
           terminal_akhir:halte!rute_terminal_akhir_fkey(id, nama, tipe, alamat, latitude, longitude)
         ''').eq('id', idRute).single();
@@ -65,7 +65,7 @@ class RuteService {
 
     // Ambil detail rute yang cocok
     final data = await _supabase.from('rute').select('''
-          id, kode, nama, estimasi_menit,
+          id, kode, nama,
           terminal_awal:halte!rute_terminal_awal_fkey(id, nama, tipe, alamat, latitude, longitude),
           terminal_akhir:halte!rute_terminal_akhir_fkey(id, nama, tipe, alamat, latitude, longitude)
         ''').inFilter('id', idRuteCocok);

@@ -18,11 +18,11 @@ class PerjalananController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> akhiriPerjalanan() async {
+  Future<void> akhiriPerjalanan([int durasiMenit = 0]) async {
     if (_perjalananAktif == null) return;
     await _service.selesaikanPerjalanan(
       idPerjalanan: _perjalananAktif!.id,
-      durasiMenit: 0,
+      durasiMenit: durasiMenit,
     );
     _hentikanPelacakan();
     _simpanStatusSelesai();

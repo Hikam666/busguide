@@ -8,7 +8,7 @@ class JadwalService {
     final data = await _supabase
         .from('jadwal')
         .select('''
-          id, jam_berangkat, estimasi_menit, hari, status,
+          id, jam_berangkat, hari, status,
           bus(id, nomor_polisi, tipe, fasilitas,
             po_bus(id, nama, logo_url)
           )
@@ -28,7 +28,7 @@ class JadwalService {
     final data = await _supabase
         .from('jadwal')
         .select('''
-          id, jam_berangkat, estimasi_menit, hari, status,
+          id, jam_berangkat, hari, status,
           bus(id, nomor_polisi, tipe, fasilitas,
             po_bus(id, nama, logo_url)
           )

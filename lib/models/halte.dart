@@ -17,6 +17,15 @@ class Halte {
     this.jarakMeter,
   });
 
+  factory Halte.lokasiSaatIni(double lat, double lon) => Halte(
+        id: 0,
+        nama: '📍 Lokasi Saat Ini',
+        tipe: 'gps',
+        alamat: 'Lokasi Perangkat Anda',
+        latitude: lat,
+        longitude: lon,
+      );
+
   factory Halte.fromMap(Map<String, dynamic> map) => Halte(
         id: (map['id'] as num).toInt(),
         nama: map['nama'] as String,

@@ -80,12 +80,34 @@ class AuthService {
       final user = response.user;
       if (user == null) throw Exception('Login Supabase gagal');
 
-      // Ambil profile
-      final profileData = await _supabase
-          .from('profiles')
-          .select('id, nama, email, role, avatar_url')
-          .eq('id', user.id)
-          .single();
+      // Ambil profile dengan retry karena DB trigger insert ke 'profiles' butuh waktu
+      Map<String, dynamic>? profileData;
+      for (int i = 0; i < 3; i++) {
+        profileData = await _supabase
+            .from('profiles')
+            .select('id, nama, email, role, avatar_url')
+            .eq('id', user.id)
+            .maybeSingle();
+        if (profileData != null) break;
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
+      if (profileData == null) {
+        // Fallback: Coba insert manual jika trigger Supabase gagal (mungkin karena field nama null pada metadata Google)
+        final newProfile = {
+          'id': user.id,
+          'nama': googleUser.displayName ?? 'Pengguna Google',
+          'email': user.email ?? googleUser.email,
+          'role': 'pengguna',
+          'avatar_url': googleUser.photoUrl,
+        };
+        try {
+          await _supabase.from('profiles').insert(newProfile);
+          profileData = newProfile;
+        } catch (e) {
+          throw Exception('Gagal memuat profil, pastikan trigger database berjalan. Error manual insert: $e');
+        }
+      }
 
       final profile = UserProfile.fromMap(profileData);
 

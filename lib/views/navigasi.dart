@@ -424,8 +424,8 @@ class _RuteTersediaCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Text('~${rute.estimasiMenit ?? 25} mnt',
-                  style: const TextStyle(
+              const Text('~25 mnt',
+                  style: TextStyle(
                       fontWeight: FontWeight.bold, color: Colors.green)),
             ],
           ),

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 import '../models/auth_service.dart';
-import 'login.dart';
-import 'home.dart';
 
 // ==========================================
 // 1. CLASS UTAMA
@@ -48,24 +46,32 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.forward();
 
     // Cek session setelah animasi selesai
-    Future.delayed(const Duration(milliseconds: 2000), _cekSession);
+    Future.delayed(const Duration(milliseconds: 2000), _cekPerizinanDanSession);
   }
 
-  Future<void> _cekSession() async {
-    final session = await _authService.getActiveSession();
+  Future<void> _cekPerizinanDanSession() async {
+    // 1. Cek izin lokasi
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (!mounted) return;
 
+    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      // Belum ada izin -> ke halaman perizinan
+      Navigator.pushReplacementNamed(context, '/perizinan');
+      return;
+    }
+
+    // 2. Jika sudah ada izin, cek session login
+    final session = await _authService.getActiveSession();
     if (!mounted) return;
 
     if (session == null) {
-      // Belum login → ke halaman login
+      // Belum login
       Navigator.pushReplacementNamed(context, '/login');
     } else {
       final role = session['role'];
       if (role == 'admin') {
-        // Arahkan ke admin dashboard jika role admin
         Navigator.pushReplacementNamed(context, '/admin');
       } else {
-        // Arahkan ke home jika role user
         Navigator.pushReplacementNamed(context, '/user');
       }
     }

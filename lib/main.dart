@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:busguide/core/theme/app_theme.dart';
 import 'package:busguide/models/supabase_config.dart';
+import 'package:busguide/core/notification_service.dart';
 
 // Import Screens
 import 'package:busguide/views/splash_screen.dart';
@@ -46,6 +47,7 @@ void main() async {
 
   try {
     await SupabaseConfig.initialize();
+    await NotificationService.init();
   } catch (e) {
     debugPrint('Gagal inisialisasi Supabase: $e');
   }

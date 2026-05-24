@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import '../models/auth_service.dart';
 import '../core/theme/app_colors.dart';
 
 // ==========================================
@@ -104,7 +105,7 @@ class _TombolIzinkanState extends State<_TombolIzinkan> {
       }
 
       if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
-        if (mounted) Navigator.pushReplacementNamed(context, '/login');
+        if (mounted) _lanjutkan(context);
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -114,6 +115,21 @@ class _TombolIzinkanState extends State<_TombolIzinkan> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _lanjutkan(BuildContext context) async {
+    final session = await AuthService().getActiveSession();
+    if (!context.mounted) return;
+    if (session == null) {
+      Navigator.pushReplacementNamed(context, '/login');
+    } else {
+      final role = session['role'];
+      if (role == 'admin') {
+        Navigator.pushReplacementNamed(context, '/admin');
+      } else {
+        Navigator.pushReplacementNamed(context, '/user');
+      }
     }
   }
 
@@ -147,8 +163,19 @@ class _TombolNanti extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TextButton(
-      onPressed: () {
-        Navigator.pushReplacementNamed(context, '/login');
+      onPressed: () async {
+        final session = await AuthService().getActiveSession();
+        if (!context.mounted) return;
+        if (session == null) {
+          Navigator.pushReplacementNamed(context, '/login');
+        } else {
+          final role = session['role'];
+          if (role == 'admin') {
+            Navigator.pushReplacementNamed(context, '/admin');
+          } else {
+            Navigator.pushReplacementNamed(context, '/user');
+          }
+        }
       },
       child: const Text(
         'Nanti Saja',
