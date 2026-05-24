@@ -87,7 +87,11 @@ class MyApp extends StatelessWidget {
         '/navigasi': (context) => const NavigasiScreen(),
         '/navigasi_aktif': (context) => const NavigasiAktifScreen(),
         '/riwayat': (context) => const RiwayatPerjalananScreen(),
-        '/user': (context) => const MainScreen(),
+        '/user': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+          final initialIndex = args is int ? args : 0;
+          return MainScreen(initialIndex: initialIndex);
+        },
         '/admin': (context) => const AdminDashboardPlaceholder(),
       },
       onGenerateRoute: (settings) {
@@ -110,14 +114,21 @@ class MyApp extends StatelessWidget {
 }
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final int initialIndex;
+  const MainScreen({super.key, this.initialIndex = 0});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+  }
 
   void _switchTab(int index) {
     setState(() => _currentIndex = index);

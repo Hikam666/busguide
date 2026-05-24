@@ -8,6 +8,7 @@ class Wisata {
   final String? jamBuka; // stored as String from DB time type
   final String? jamTutup;
   final String? fotoUrl;
+  final double? rating;
 
   const Wisata({
     required this.id,
@@ -19,6 +20,7 @@ class Wisata {
     this.jamBuka,
     this.jamTutup,
     this.fotoUrl,
+    this.rating,
   });
 
   factory Wisata.fromMap(Map<String, dynamic> map) => Wisata(
@@ -31,6 +33,7 @@ class Wisata {
         jamBuka: map['jam_buka'] as String?,
         jamTutup: map['jam_tutup'] as String?,
         fotoUrl: map['foto_url'] as String?,
+        rating: map['rating'] != null ? (map['rating'] as num).toDouble() : null,
       );
 
   /// Format tarif: 25000 -> '25.000'
