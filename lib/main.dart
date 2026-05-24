@@ -16,6 +16,7 @@ import 'package:busguide/views/profil.dart';
 import 'package:busguide/views/rekomendasi.dart';
 import 'package:busguide/views/detail_wisata.dart';
 import 'package:busguide/views/detail_po_bus.dart';
+import 'package:busguide/views/riwayat_perjalanan.dart';
 import 'package:busguide/templates/bottom_navbar.dart';
 
 // Import Controllers (MVC Layer)
@@ -44,7 +45,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    await SupabaseConfig.initialize(); // Supabase Initialization
+    await SupabaseConfig.initialize();
   } catch (e) {
     debugPrint('Gagal inisialisasi Supabase: $e');
   }
@@ -52,7 +53,6 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        // ── Global controllers ─────────────────────────────────
         ChangeNotifierProvider(create: (_) => AuthController()),
         ChangeNotifierProvider(create: (_) => HomeController()),
         ChangeNotifierProvider(create: (_) => HalteController()),
@@ -61,7 +61,6 @@ void main() async {
         ChangeNotifierProvider(create: (_) => RekomendasiController()),
         ChangeNotifierProvider(create: (_) => ProfilController()),
         ChangeNotifierProvider(create: (_) => RiwayatController()),
-        // ── Per-screen controllers (lazy, dibuat baru tiap layar) ───
         ChangeNotifierProvider(create: (_) => DetailWisataController()),
         ChangeNotifierProvider(create: (_) => DetailPoBusController()),
       ],
@@ -79,7 +78,6 @@ class MyApp extends StatelessWidget {
       title: 'BusGuide',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      // ─── PENGATURAN ROUTER TERPUSAT ───
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),
@@ -88,12 +86,11 @@ class MyApp extends StatelessWidget {
         '/register': (context) => const RegisterPage(),
         '/navigasi': (context) => const NavigasiScreen(),
         '/navigasi_aktif': (context) => const NavigasiAktifScreen(),
-        '/user': (context) =>
-            const MainScreen(), // Menggunakan MainScreen agar BottomNavbar tetap ada
+        '/riwayat': (context) => const RiwayatPerjalananScreen(),
+        '/user': (context) => const MainScreen(),
         '/admin': (context) => const AdminDashboardPlaceholder(),
       },
       onGenerateRoute: (settings) {
-        // Menangani rute yang membawa argumen (parameter ID)
         if (settings.name == '/detail-wisata') {
           final idWisata = settings.arguments as int;
           return MaterialPageRoute(
@@ -106,7 +103,7 @@ class MyApp extends StatelessWidget {
             builder: (context) => DetailPoBusScreen(idPoBus: idPoBus),
           );
         }
-        return null; // Kembalikan null jika rute tidak cocok
+        return null;
       },
     );
   }
@@ -122,21 +119,30 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const HalteScreen(),
-    const NavigasiScreen(),
-    const RekomendasiScreen(),
-    const ProfilScreen(),
-  ];
+  void _switchTab(int index) {
+    setState(() => _currentIndex = index);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: BottomNavbar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+    // TabSwitcher di-wrap di sini agar semua child screen bisa akses
+    return TabSwitcher( 
+      switchTab: _switchTab,
+      child: Scaffold(
+        body: IndexedStack(
+          index: _currentIndex,
+          children: const [
+            HomeScreen(),
+            HalteScreen(),
+            NavigasiScreen(),
+            RekomendasiScreen(),
+            ProfilScreen(),
+          ],
+        ),
+        bottomNavigationBar: BottomNavbar(
+          currentIndex: _currentIndex,
+          onTap: _switchTab,
+        ),
       ),
     );
   }

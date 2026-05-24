@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../core/theme/app_colors.dart';
 import '../controllers/navigasi_aktif_controller.dart';
+import '../controllers/home_controller.dart';
 
 class NavigasiAktifScreen extends StatefulWidget {
   const NavigasiAktifScreen({super.key});
@@ -31,12 +32,23 @@ class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
 
   Future<void> _selesaikan(NavigasiAktifController ctrl) async {
     final success = await ctrl.selesaikanPerjalanan();
-    if (success && mounted) Navigator.pop(context);
+    if (success) {
+      // Refresh home so active trip is removed immediately
+      try {
+        await context.read<HomeController>().loadData();
+      } catch (_) {}
+      if (mounted) Navigator.pop(context);
+    }
   }
 
   Future<void> _batalkan(NavigasiAktifController ctrl) async {
     final success = await ctrl.batalkanPerjalanan();
-    if (success && mounted) Navigator.pop(context);
+    if (success) {
+      try {
+        await context.read<HomeController>().loadData();
+      } catch (_) {}
+      if (mounted) Navigator.pop(context);
+    }
   }
 
   @override

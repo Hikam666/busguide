@@ -7,6 +7,25 @@ import 'package:busguide/models/perjalanan.dart';
 import 'package:busguide/models/wisata.dart';
 
 // ==========================================
+// INHERITED WIDGET — tab switcher dari MainScreen
+// ==========================================
+class TabSwitcher extends InheritedWidget {
+  final void Function(int index) switchTab;
+
+  const TabSwitcher({
+    super.key,
+    required this.switchTab,
+    required super.child,
+  });
+
+  static TabSwitcher? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<TabSwitcher>();
+
+  @override
+  bool updateShouldNotify(TabSwitcher oldWidget) => false;
+}
+
+// ==========================================
 // 1. CLASS UTAMA
 // ==========================================
 class HomeScreen extends StatefulWidget {
@@ -30,11 +49,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppHeader(
-          title: 'BusGuide',
-          showNotification: true,
-          hasUnreadNotification: true,
-          onNotificationTap: () {},
-        ),
+        title: 'BusGuide',
+        showNotification: true,
+        hasUnreadNotification: true,
+        onNotificationTap: () {},
+      ),
       body: Consumer<HomeController>(
         builder: (context, ctrl, _) => SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -45,33 +64,32 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 20),
               _QuickActions(),
               const SizedBox(height: 20),
-              _TrafficBanner(),
+                if (ctrl.adaPerjalananAktif) ...[
+                  _TripCard(perjalanan: ctrl.perjalananAktif!),
+                  const SizedBox(height: 12),
+                ],
               const SizedBox(height: 28),
 
               _SectionHeader(
                 title: 'Riwayat perjalanan',
                 actionLabel: 'Lihat Semua',
-                onAction: () {
-                  Navigator.pushNamed(context, '/riwayat');
-                },
+                onAction: () => Navigator.pushNamed(context, '/riwayat'),
               ),
               const SizedBox(height: 12),
 
               if (ctrl.isLoading)
-                const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+                const Center(
+                    child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: CircularProgressIndicator()))
               else if (ctrl.riwayatList.isEmpty)
-                const Text('Belum ada riwayat perjalanan.', style: TextStyle(color: AppColors.textSecondary))
+                const Text('Belum ada riwayat perjalanan.',
+                    style: TextStyle(color: AppColors.textSecondary))
               else
                 ...ctrl.riwayatList.map((riwayat) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _TripCard(
-                    busCode: riwayat.rute?.kode ?? '-',
-                    fromHalte: riwayat.halteAsal?.nama ?? '-',
-                    toHalte: riwayat.halteTujuan?.nama ?? '-',
-                    time: riwayat.waktuMulaiFormatted,
-                    isActive: riwayat.status == 'aktif',
-                  ),
-                )),
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _TripCard(perjalanan: riwayat),
+                    )),
               const SizedBox(height: 28),
 
               const Text(
@@ -85,7 +103,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 12),
               if (ctrl.isLoading)
-                const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+                const Center(
+                    child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: CircularProgressIndicator()))
               else
                 _RekomendasiList(data: ctrl.rekomendasiList),
               const SizedBox(height: 20),
@@ -98,61 +119,117 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ==========================================
-// 2. WIDGET-WIDGET PENDUKUNG (DI FILE YANG SAMA)
+// 2. WIDGET-WIDGET PENDUKUNG
 // ==========================================
+
 // ── Search Bar ───────────────────────────────────────────────────────────────
 class _SearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 52,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 16),
-          const Icon(Icons.search, color: AppColors.textSecondary, size: 22),
-          const SizedBox(width: 10),
-          Text(
-            'Mau ke mana hari ini?',
-            style: TextStyle(
-              color: AppColors.textSecondary.withOpacity(0.8),
-              fontSize: 15,
-              fontWeight: FontWeight.w400,
+    return GestureDetector(
+      onTap: () {
+        // Buka layar navigasi (tab index 2) dan tampilkan search fokus
+        final switcher = TabSwitcher.maybeOf(context);
+        if (switcher != null) {
+          // Jika ada TabSwitcher (pakai MainScreen), pindah ke tab Navigasi
+          switcher.switchTab(2);
+        } else {
+          // Fallback: push route langsung
+          Navigator.pushNamed(context, '/navigasi');
+        }
+      },
+      child: Container(
+        height: 52,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withOpacity(0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-          ),
-        ],
+          ],
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 16),
+            const Icon(Icons.search, color: AppColors.primary, size: 22),
+            const SizedBox(width: 10),
+            Text(
+              'Mau ke mana hari ini?',
+              style: TextStyle(
+                color: AppColors.textSecondary.withOpacity(0.8),
+                fontSize: 15,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              margin: const EdgeInsets.only(right: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Cari Rute',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 // ── Quick Actions ─────────────────────────────────────────────────────────────
-
 class _QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final switcher = TabSwitcher.maybeOf(context);
+
     return Row(
       children: [
         _QuickActionCard(
           icon: Icons.location_on_rounded,
           label: 'Halte Terdekat',
-          onTap: () {},
+          onTap: () {
+            // Tab index 1 = HalteScreen
+            if (switcher != null) {
+              switcher.switchTab(1);
+            } else {
+              Navigator.pushNamed(context, '/halte');
+            }
+          },
         ),
         const SizedBox(width: 10),
         _QuickActionCard(
           icon: Icons.swap_calls_rounded,
           label: 'Cari Rute',
-          onTap: () {},
+          onTap: () {
+            // Tab index 2 = NavigasiScreen
+            if (switcher != null) {
+              switcher.switchTab(2);
+            } else {
+              Navigator.pushNamed(context, '/navigasi');
+            }
+          },
         ),
         const SizedBox(width: 10),
         _QuickActionCard(
           icon: Icons.navigation_rounded,
           label: 'Navigasi',
-          onTap: () {},
+          onTap: () {
+            // Navigasi aktif bisa dari luar MainScreen
+            Navigator.pushNamed(context, '/navigasi_aktif');
+          },
         ),
       ],
     );
@@ -212,81 +289,9 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
-// ── Traffic Banner ────────────────────────────────────────────────────────────
-
-class _TrafficBanner extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          // Traffic light icon
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF0F0),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Center(
-              child: Text('🚦', style: TextStyle(fontSize: 22)),
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Kondisi lalu lintas',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Jalan Sudirman padat merayap',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.error,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Text(
-              'Padat',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// Traffic banner removed
 
 // ── Section Header ────────────────────────────────────────────────────────────
-
 class _SectionHeader extends StatelessWidget {
   final String title;
   final String actionLabel;
@@ -328,101 +333,142 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// ── Trip Card ─────────────────────────────────────────────────────────────────
-
+// ── Trip Card — data langsung dari model Perjalanan ───────────────────────────
 class _TripCard extends StatelessWidget {
-  final String busCode;
-  final String fromHalte;
-  final String toHalte;
-  final String time;
-  final bool isActive;
+  final Perjalanan perjalanan;
 
-  const _TripCard({
-    required this.busCode,
-    required this.fromHalte,
-    required this.toHalte,
-    required this.time,
-    required this.isActive,
-  });
+  const _TripCard({required this.perjalanan});
+
+  // Status → label, warna, ikon
+  ({String label, Color color, Color bg}) get _statusInfo {
+    switch (perjalanan.status) {
+      case 'aktif':
+        return (
+          label: 'Sedang Berlangsung',
+          color: AppColors.primary,
+          bg: AppColors.surfaceVariant,
+        );
+      case 'dibatalkan':
+        return (
+          label: 'Dibatalkan',
+          color: AppColors.error,
+          bg: const Color(0xFFFFEEEE),
+        );
+      default: // 'selesai'
+        return (
+          label: 'Selesai',
+          color: AppColors.textSecondary,
+          bg: AppColors.surfaceVariant,
+        );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: IntrinsicHeight(
-        child: Row(
-          children: [
-            // Left blue accent bar
-            Container(
-              width: 4,
-              decoration: BoxDecoration(
-                color: isActive ? AppColors.primary : AppColors.border,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  bottomLeft: Radius.circular(16),
+    final status = _statusInfo;
+    final isActive = perjalanan.status == 'aktif';
+
+    return GestureDetector(
+      onTap: () {
+        if (isActive) {
+          Navigator.pushNamed(context, '/navigasi_aktif');
+        } else {
+          Navigator.pushNamed(context, '/riwayat');
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              // Left accent bar — biru jika aktif, abu jika tidak
+              Container(
+                width: 4,
+                decoration: BoxDecoration(
+                  color: isActive ? AppColors.primary : AppColors.border,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    bottomLeft: Radius.circular(16),
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Bus badge + time
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _BusBadge(code: busCode, isActive: isActive),
-                        Text(
-                          time,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w500,
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Bus badge + waktu
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _BusBadge(
+                            code: perjalanan.rute?.kode ?? '-',
+                            isActive: isActive,
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    // Route dots
-                    _RouteStops(
-                      from: fromHalte,
-                      to: toHalte,
-                      isActive: isActive,
-                    ),
-                    const SizedBox(height: 12),
-                    // Status
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceVariant,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'Selesai',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
+                          Text(
+                            perjalanan.waktuMulaiFormatted,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 14),
+                      // Route stops
+                      _RouteStops(
+                        from: perjalanan.halteAsal?.nama ?? '-',
+                        to: perjalanan.halteTujuan?.nama ?? '-',
+                        isActive: isActive,
+                      ),
+                      const SizedBox(height: 12),
+                      // Status badge — dinamis dari DB
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Durasi jika ada
+                          if (perjalanan.riwayat.isNotEmpty &&
+                              perjalanan.riwayat.first.durasiLabel != null)
+                            Text(
+                              '⏱ ${perjalanan.riwayat.first.durasiLabel}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            )
+                          else
+                            const SizedBox.shrink(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: status.bg,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              status.label,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: status.color,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -446,11 +492,9 @@ class _BusBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.directions_bus_rounded,
-            size: 14,
-            color: isActive ? Colors.white : AppColors.textSecondary,
-          ),
+          Icon(Icons.directions_bus_rounded,
+              size: 14,
+              color: isActive ? Colors.white : AppColors.textSecondary),
           const SizedBox(width: 5),
           Text(
             code,
@@ -471,18 +515,14 @@ class _RouteStops extends StatelessWidget {
   final String to;
   final bool isActive;
 
-  const _RouteStops({
-    required this.from,
-    required this.to,
-    required this.isActive,
-  });
+  const _RouteStops(
+      {required this.from, required this.to, required this.isActive});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Dot + line + dot
         Column(
           children: [
             Container(
@@ -498,42 +538,36 @@ class _RouteStops extends StatelessWidget {
               ),
             ),
             Container(
-              width: 2,
-              height: 18,
-              color: isActive ? AppColors.primary : AppColors.border,
-            ),
+                width: 2,
+                height: 18,
+                color: isActive ? AppColors.primary : AppColors.border),
             Container(
               width: 14,
               height: 14,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isActive ? AppColors.primary : AppColors.textSecondary.withOpacity(0.3),
+                color: isActive
+                    ? AppColors.primary
+                    : AppColors.textSecondary.withOpacity(0.3),
               ),
             ),
           ],
         ),
         const SizedBox(width: 10),
-        // Labels
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              from,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textPrimary,
-              ),
-            ),
+            Text(from,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary)),
             const SizedBox(height: 12),
-            Text(
-              to,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textPrimary,
-              ),
-            ),
+            Text(to,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary)),
           ],
         ),
       ],
@@ -542,7 +576,6 @@ class _RouteStops extends StatelessWidget {
 }
 
 // ── Rekomendasi List ──────────────────────────────────────────────────────────
-
 class _RekomendasiList extends StatelessWidget {
   final List<Wisata> data;
 
@@ -550,7 +583,9 @@ class _RekomendasiList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (data.isEmpty) return const Text('Belum ada rekomendasi.', style: TextStyle(color: AppColors.textSecondary));
+    if (data.isEmpty)
+      return const Text('Belum ada rekomendasi.',
+          style: TextStyle(color: AppColors.textSecondary));
 
     return SizedBox(
       height: 250,
@@ -559,7 +594,8 @@ class _RekomendasiList extends StatelessWidget {
         clipBehavior: Clip.none,
         itemCount: data.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, index) => _RekomendasiCard(item: data[index]),
+        itemBuilder: (context, index) =>
+            _RekomendasiCard(item: data[index]),
       ),
     );
   }
@@ -576,9 +612,8 @@ class _RekomendasiCard extends StatelessWidget {
     final fotoUrl = item.fotoUrl;
 
     return GestureDetector(
-      onTap: () {
-        Navigator.pushNamed(context, '/detail-wisata', arguments: item.id);
-      },
+      onTap: () =>
+          Navigator.pushNamed(context, '/detail-wisata', arguments: item.id),
       child: Container(
         width: cardWidth,
         decoration: BoxDecoration(
@@ -599,12 +634,14 @@ class _RekomendasiCard extends StatelessWidget {
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         color: AppColors.surfaceVariant,
-                        child: const Icon(Icons.image_outlined, color: AppColors.border, size: 40),
+                        child: const Icon(Icons.image_outlined,
+                            color: AppColors.border, size: 40),
                       ),
                     )
                   : Container(
                       color: AppColors.surfaceVariant,
-                      child: const Icon(Icons.image_outlined, color: AppColors.border, size: 40),
+                      child: const Icon(Icons.image_outlined,
+                          color: AppColors.border, size: 40),
                     ),
             ),
             Expanded(

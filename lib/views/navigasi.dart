@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import '../core/theme/app_colors.dart';
 import '../templates/header.dart';
 import '../controllers/navigasi_controller.dart';
+import '../controllers/home_controller.dart';
 import '../models/halte.dart';
 import '../models/rute.dart';
 
@@ -100,6 +101,10 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
         SnackBar(content: Text(error), backgroundColor: Colors.red),
       );
     } else {
+      // Refresh HomeController so Home shows the active perjalanan immediately
+      try {
+        await context.read<HomeController>().loadData();
+      } catch (_) {}
       Navigator.pushNamed(context, '/navigasi_aktif').then((_) {
         ctrl.resetState();
       });

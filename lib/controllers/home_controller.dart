@@ -10,12 +10,15 @@ class HomeController extends ChangeNotifier {
 
   List<Perjalanan> _riwayatList = [];
   List<Wisata> _rekomendasiList = [];
+  Perjalanan? _perjalananAktif;
   bool _isLoading = true;
 
   // ─── GETTERS ─────────────────────────────────────────────
   List<Perjalanan> get riwayatList => _riwayatList;
   List<Wisata> get rekomendasiList => _rekomendasiList;
   bool get isLoading => _isLoading;
+  Perjalanan? get perjalananAktif => _perjalananAktif;
+  bool get adaPerjalananAktif => _perjalananAktif != null;
 
   // ─── LOAD DATA ────────────────────────────────────────────
   Future<void> loadData() async {
@@ -23,6 +26,9 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Ambil perjalanan aktif (jika ada) lalu riwayat/rekomendasi
+      _perjalananAktif = await _perjalananService.getPerjalananAktif();
+
       final riwayat = await _perjalananService.getRiwayatPerjalanan();
       final wisata = await _wisataService.getSemuaWisata();
 

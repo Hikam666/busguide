@@ -149,6 +149,14 @@ class NavigasiAktifController extends ChangeNotifier {
         idPerjalanan: _perjalananAktif!.id,
         durasiMenit: durasiMenit,
       );
+      // Clear local active trip state
+      _perjalananAktif = null;
+      _titikPolyline = [];
+      _halteRute = [];
+      _halteBerikutnya = null;
+      _gpsStream?.cancel();
+      _gpsStream = null;
+      notifyListeners();
       return true;
     } catch (_) {
       _isLoading = false;
@@ -166,6 +174,14 @@ class NavigasiAktifController extends ChangeNotifier {
 
     try {
       await _perjalananService.batalkanPerjalanan(_perjalananAktif!.id);
+      // Clear local active trip state
+      _perjalananAktif = null;
+      _titikPolyline = [];
+      _halteRute = [];
+      _halteBerikutnya = null;
+      _gpsStream?.cancel();
+      _gpsStream = null;
+      notifyListeners();
       return true;
     } catch (_) {
       _isLoading = false;

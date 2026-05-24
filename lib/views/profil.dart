@@ -57,7 +57,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const AppHeader(title: 'BusGuide', showBack: false),
+      appBar: const AppHeader(title: 'BusGuide', showBack: false, showNotification: false),
       body: Consumer<ProfilController>(
         builder: (context, ctrl, _) => ctrl.isLoading
           ? const Center(child: CircularProgressIndicator())

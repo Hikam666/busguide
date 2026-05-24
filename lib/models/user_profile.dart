@@ -3,12 +3,14 @@ class UserProfile {
   final String nama;
   final String email;
   final String role; // 'pengguna' | 'admin'
+  final String? avatarUrl;
 
   const UserProfile({
     required this.id,
     required this.nama,
     required this.email,
     required this.role,
+    this.avatarUrl,
   });
 
   factory UserProfile.fromMap(Map<String, dynamic> map) => UserProfile(
@@ -16,6 +18,7 @@ class UserProfile {
         nama: map['nama'] as String,
         email: map['email'] as String,
         role: map['role'] as String? ?? 'pengguna',
+        avatarUrl: map['avatar_url'] as String?,
       );
 
   bool get isAdmin => role == 'admin';
