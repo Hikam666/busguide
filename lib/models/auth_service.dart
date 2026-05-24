@@ -5,6 +5,9 @@ import 'user_profile.dart';
 
 class AuthService {
   final _supabase = Supabase.instance.client;
+  final _googleSignIn = GoogleSignIn(
+    serverClientId: '611504260934-7b8h32720mfejra325be3s3kaeuil1cr.apps.googleusercontent.com',
+  );
 
   // ─── LOGIN ───────────────────────────────────────────────
   Future<Map<String, dynamic>> login({
@@ -44,14 +47,7 @@ class AuthService {
   // ─── LOGIN GOOGLE ──────────────────────────────────────────────
   Future<Map<String, dynamic>> loginGoogle() async {
     try {
-      // Web Client ID dari Google Cloud Console
-      const webClientId = '611504260934-7b8h32720mfejra325be3s3kaeuil1cr.apps.googleusercontent.com';
-
-      final googleSignIn = GoogleSignIn(
-        serverClientId: webClientId,
-      );
-
-      final googleUser = await googleSignIn.signIn();
+      final googleUser = await _googleSignIn.signIn();
       if (googleUser == null) throw Exception('Login Google dibatalkan oleh pengguna');
 
       final googleAuth = await googleUser.authentication;
@@ -117,6 +113,9 @@ class AuthService {
 
   // ─── LOGOUT ──────────────────────────────────────────────
   Future<void> logout() async {
+    try {
+      await _googleSignIn.signOut();
+    } catch (_) {}
     await _supabase.auth.signOut();
   }
 
