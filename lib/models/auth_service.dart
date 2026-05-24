@@ -45,10 +45,25 @@ class AuthService {
   }
 
   // ─── LOGIN GOOGLE ──────────────────────────────────────────────
-  Future<Map<String, dynamic>> loginGoogle() async {
+  Future<Map<String, dynamic>> loginGoogle({bool isRegister = false}) async {
     try {
       final googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) throw Exception('Login Google dibatalkan oleh pengguna');
+      if (googleUser == null) throw Exception('Dibatalkan oleh pengguna');
+
+      // Cek apakah email sudah terdaftar menggunakan RPC
+      final emailExists = await _supabase.rpc('check_email_exists', params: {
+        'check_email': googleUser.email,
+      }) as bool;
+
+      if (!isRegister && !emailExists) {
+        await _googleSignIn.signOut();
+        throw Exception('Akun belum terdaftar. Silakan daftar terlebih dahulu.');
+      }
+
+      if (isRegister && emailExists) {
+        await _googleSignIn.signOut();
+        throw Exception('Akun sudah terdaftar. Silakan masuk (login).');
+      }
 
       final googleAuth = await googleUser.authentication;
       final accessToken = googleAuth.accessToken;

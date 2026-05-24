@@ -70,9 +70,9 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
-  Future<void> _handleLoginGoogle() async {
+  Future<void> _handleRegisterGoogle() async {
     final ctrl = context.read<AuthController>();
-    final role = await ctrl.loginGoogle();
+    final role = await ctrl.registerGoogle();
 
     if (!mounted) return;
 
@@ -82,6 +82,10 @@ class _RegisterPageState extends State<RegisterPage> {
       );
       return;
     }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Pendaftaran Google berhasil!')),
+    );
 
     if (role == 'admin') {
       Navigator.pushReplacementNamed(context, '/admin');
@@ -163,7 +167,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 const _BagianDivider(),
                 _TombolGoogle(
                   isLoading: context.watch<AuthController>().isLoading,
-                  onPressed: context.watch<AuthController>().isLoading ? null : _handleLoginGoogle,
+                  onPressed: context.watch<AuthController>().isLoading ? null : _handleRegisterGoogle,
                 ),
                 const SizedBox(height: 24),
                 const _BagianMasuk(),
