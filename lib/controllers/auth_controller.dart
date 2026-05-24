@@ -54,6 +54,22 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  // ─── LOGIN GOOGLE ────────────────────────────────────────
+  Future<String?> loginGoogle() async {
+    _setLoading(true);
+    _setError(null);
+
+    try {
+      final result = await _authService.loginGoogle();
+      return result['role'] as String?;
+    } catch (e) {
+      _setError(e.toString().replaceAll('Exception: ', ''));
+      return null;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // ─── REGISTER ────────────────────────────────────────────
   /// Mengembalikan true jika berhasil
   Future<bool> register({

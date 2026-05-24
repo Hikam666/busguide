@@ -49,6 +49,15 @@ class HalteController extends ChangeNotifier {
     }
   }
 
+  // ─── GET DETAIL ──────────────────────────────────────────
+  Future<Halte?> getDetail(int id) async {
+    try {
+      return await _halteService.getDetailHalte(id);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ─── DAPATKAN LOKASI GPS ──────────────────────────────────
   Future<void> dapatkanLokasi() async {
     _isLoadingLokasi = true;

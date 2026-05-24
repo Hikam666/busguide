@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'user_profile.dart';
 
 class AuthService {
@@ -19,6 +20,55 @@ class AuthService {
       if (user == null) throw Exception('Login gagal');
 
       // Ambil role dari tabel profiles
+      final profileData = await _supabase
+          .from('profiles')
+          .select('id, nama, email, role')
+          .eq('id', user.id)
+          .single();
+
+      final profile = UserProfile.fromMap(profileData);
+
+      return {
+        'user': user,
+        'profile': profile,
+        'role': profile.role,
+      };
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception('Terjadi kesalahan: $e');
+    }
+  }
+
+  // ─── LOGIN GOOGLE ──────────────────────────────────────────────
+  Future<Map<String, dynamic>> loginGoogle() async {
+    try {
+      // Web Client ID dari Google Cloud Console
+      const webClientId = '611504260934-7b8h32720mfejra325be3s3kaeuil1cr.apps.googleusercontent.com';
+
+      final googleSignIn = GoogleSignIn(
+        serverClientId: webClientId,
+      );
+
+      final googleUser = await googleSignIn.signIn();
+      if (googleUser == null) throw Exception('Login Google dibatalkan oleh pengguna');
+
+      final googleAuth = await googleUser.authentication;
+      final accessToken = googleAuth.accessToken;
+      final idToken = googleAuth.idToken;
+
+      if (idToken == null) throw Exception('Tidak ada ID Token dari Google');
+
+      final response = await _supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      final user = response.user;
+      if (user == null) throw Exception('Login Supabase gagal');
+
+      // Ambil profile
       final profileData = await _supabase
           .from('profiles')
           .select('id, nama, email, role')

@@ -40,6 +40,26 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _handleLoginGoogle() async {
+    final ctrl = context.read<AuthController>();
+    final role = await ctrl.loginGoogle();
+
+    if (!mounted) return;
+
+    if (ctrl.errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ctrl.errorMessage!)),
+      );
+      return;
+    }
+
+    if (role == 'admin') {
+      Navigator.pushReplacementNamed(context, '/admin');
+    } else if (role != null) {
+      Navigator.pushReplacementNamed(context, '/user');
+    }
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -90,7 +110,10 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 
                 const _BagianDivider(),
-                const _TombolGoogle(),
+                _TombolGoogle(
+                  isLoading: context.watch<AuthController>().isLoading,
+                  onPressed: context.watch<AuthController>().isLoading ? null : _handleLoginGoogle,
+                ),
                 const SizedBox(height: 24),
                 const _BagianDaftar(),
               ],
@@ -245,7 +268,10 @@ class _BagianDivider extends StatelessWidget {
 }
 
 class _TombolGoogle extends StatelessWidget {
-  const _TombolGoogle({super.key});
+  final bool isLoading;
+  final VoidCallback? onPressed;
+
+  const _TombolGoogle({super.key, required this.isLoading, this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -253,7 +279,7 @@ class _TombolGoogle extends StatelessWidget {
       width: double.infinity,
       height: 48,
       child: OutlinedButton.icon(
-        onPressed: () {},
+        onPressed: onPressed,
         icon: Image.asset('assets/img/google.jpg', width: 24, height: 24),
         label: const Text('Masuk dengan Google', style: TextStyle(color: Colors.black87)),
         style: OutlinedButton.styleFrom(
