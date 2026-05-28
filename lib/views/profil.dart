@@ -20,7 +20,6 @@ class _ProfilScreenState extends State<ProfilScreen> {
   @override
   void initState() {
     super.initState();
-    // Load profil saat pertama kali dibuka
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ProfilController>().loadProfile();
     });
@@ -50,8 +49,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
     if ((confirm ?? false) && mounted) {
       await ctx.read<ProfilController>().logout();
       if (mounted) {
-        Navigator.pushNamedAndRemoveUntil(
-            context, '/login', (route) => false);
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
       }
     }
   }
@@ -60,235 +58,219 @@ class _ProfilScreenState extends State<ProfilScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const AppHeader(title: 'BusGuide', showBack: false, showNotification: false),
+      appBar: const AppHeader(
+          title: 'BusGuide', showBack: false, showNotification: false),
       body: Consumer<ProfilController>(
         builder: (context, ctrl, _) => ctrl.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Column(
-                children: [
-                  const SizedBox(height: 32),
-                  // ignore: unused_element - ctrl available from Consumer
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 32),
 
-                  // ── Avatar ──────────────────────────────
-                  Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      CircleAvatar(
-                        radius: 48,
-                        backgroundColor: AppColors.primary,
-                        backgroundImage: ctrl.profile?.avatarUrl != null
-                            ? NetworkImage(ctrl.profile!.avatarUrl!)
-                            : null,
-                        child: ctrl.profile?.avatarUrl == null
-                            ? Text(
-                                ctrl.initials,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              )
-                            : null,
+                    // ── Avatar ──────────────────────────────
+                    Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        CircleAvatar(
+                          radius: 48,
+                          backgroundColor: AppColors.primary,
+                          backgroundImage: ctrl.profile?.avatarUrl != null
+                              ? NetworkImage(ctrl.profile!.avatarUrl!)
+                              : null,
+                          child: ctrl.profile?.avatarUrl == null
+                              ? Text(
+                                  ctrl.initials,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(Icons.edit,
+                              color: Colors.white, size: 14),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // ── Nama & Email ─────────────────────────
+                    Text(
+                      ctrl.nama,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1A1A2E),
                       ),
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      ctrl.email,
+                      style: const TextStyle(
+                          fontSize: 13, color: Color(0xFF6B7280)),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // ── Tombol Edit Profil ───────────────────
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const EditProfilScreen()),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: AppColors.primary),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 28, vertical: 8),
+                      ),
+                      child: Text(
+                        'Edit profil',
+                        style: TextStyle(
                           color: AppColors.primary,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
                         ),
-                        child: const Icon(Icons.edit,
-                            color: Colors.white, size: 14),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ── Nama & Email ─────────────────────────
-                  Text(
-                    ctrl.nama,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1A1A2E),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    ctrl.email,
-                    style: const TextStyle(
-                        fontSize: 13, color: Color(0xFF6B7280)),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ── Tombol Edit Profil ───────────────────
-                  OutlinedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const EditProfilScreen()),
-                      );
-                    },
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: AppColors.primary),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20)),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 28, vertical: 8),
-                    ),
-                    child: Text(
-                      'Edit profil',
-                      style: TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 13,
                       ),
                     ),
-                  ),
 
-                  const SizedBox(height: 28),
+                    const SizedBox(height: 28),
 
-                  // ── Menu Card ───────────────────────────
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black
-                                .withValues(alpha: 0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          // Riwayat Perjalanan
-                          _MenuTile(
-                            icon: Icons.history_rounded,
-                            label: 'Riwayat Perjalanan',
-                            showArrow: true,
-                            onTap: () {
-                      
-                              //    adalah StatefulWidget, tidak bisa const
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const RiwayatPerjalananScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          _Divider(),
-
-                          // Perizinan Aplikasi
-                          _MenuTile(
-                            icon: Icons.shield_outlined,
-                            label: 'Perizinan Aplikasi',
-                            onTap: () async {
-                              final currentContext = context;
-                              // Izin Lokasi
-                              LocationPermission locPerm = await Geolocator.checkPermission();
-                              if (locPerm == LocationPermission.denied) {
-                                locPerm = await Geolocator.requestPermission();
-                              }
-                              
-                              // Izin Notifikasi
-                              final notifGranted = await NotificationService.requestPermission();
-
-                              if (!currentContext.mounted) return;
-
-                              final locGranted = (locPerm == LocationPermission.whileInUse || locPerm == LocationPermission.always);
-                              if (locGranted && notifGranted) {
-                                ScaffoldMessenger.of(currentContext).showSnackBar(
-                                  const SnackBar(content: Text('Perizinan lokasi & notifikasi sudah aktif!'), backgroundColor: Colors.green),
-                                );
-                              } else {
-                                ScaffoldMessenger.of(currentContext).showSnackBar(
-                                  const SnackBar(content: Text('Perizinan belum lengkap. Anda bisa mengaktifkannya via pengaturan perangkat.'), backgroundColor: Colors.red),
-                                );
-                              }
-                            },
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _PermissionChip(
-                                  icon: Icons.location_on_outlined,
-                                  label: 'Lokasi',
-                                ),
-                                const SizedBox(width: 6),
-                                _PermissionChip(
-                                  icon: Icons.notifications_outlined,
-                                  label: 'Notif',
-                                ),
-                              ],
+                    // ── Menu Card (semua item termasuk Keluar) ──
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
-                          ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            // Riwayat Perjalanan
+                            _MenuTile(
+                              icon: Icons.history_rounded,
+                              label: 'Riwayat Perjalanan',
+                              showArrow: true,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const RiwayatPerjalananScreen(),
+                                  ),
+                                );
+                              },
+                            ),
 
-                          _Divider(),
+                            _Divider(),
 
-                          _Divider(),
+                            // Perizinan Aplikasi
+                            _MenuTile(
+                              icon: Icons.shield_outlined,
+                              label: 'Perizinan Aplikasi',
+                              onTap: () async {
+                                final currentContext = context;
+                                LocationPermission locPerm =
+                                    await Geolocator.checkPermission();
+                                if (locPerm == LocationPermission.denied) {
+                                  locPerm =
+                                      await Geolocator.requestPermission();
+                                }
+                                final notifGranted =
+                                    await NotificationService.requestPermission();
 
-                          // Tentang Aplikasi
-                          _MenuTile(
-  icon: Icons.info_outline_rounded,
-  label: 'Tentang Aplikasi',
-  showArrow: true,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const TentangAplikasiScreen(),
-      ),
-    );
-  },
-),
-                        ],
+                                if (!currentContext.mounted) return;
+
+                                final locGranted = (locPerm ==
+                                        LocationPermission.whileInUse ||
+                                    locPerm == LocationPermission.always);
+                                if (locGranted && notifGranted) {
+                                  ScaffoldMessenger.of(currentContext)
+                                      .showSnackBar(const SnackBar(
+                                    content: Text(
+                                        'Perizinan lokasi & notifikasi sudah aktif!'),
+                                    backgroundColor: Colors.green,
+                                  ));
+                                } else {
+                                  ScaffoldMessenger.of(currentContext)
+                                      .showSnackBar(const SnackBar(
+                                    content: Text(
+                                        'Perizinan belum lengkap. Anda bisa mengaktifkannya via pengaturan perangkat.'),
+                                    backgroundColor: Colors.red,
+                                  ));
+                                }
+                              },
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _PermissionChip(
+                                    icon: Icons.location_on_outlined,
+                                    label: 'Lokasi',
+                                  ),
+                                  const SizedBox(width: 6),
+                                  _PermissionChip(
+                                    icon: Icons.notifications_outlined,
+                                    label: 'Notif',
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            _Divider(),
+
+                            // Tentang Aplikasi
+                            _MenuTile(
+                              icon: Icons.info_outline_rounded,
+                              label: 'Tentang Aplikasi',
+                              showArrow: true,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const TentangAplikasiScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+
+                            _Divider(),
+
+                            // ── Keluar (di dalam card, dengan styling merah) ──
+                            _LogoutTile(
+                              onTap: () => _handleLogout(context),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
 
-                  const SizedBox(height: 24),
-
-                  // ── Tombol Keluar ────────────────────────
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: TextButton(
-                        onPressed: () => _handleLogout(context),
-                        style: TextButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFF0F0),
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          'Keluar',
-                          style: TextStyle(
-                            color: AppColors.error,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 32),
-                ],
+                    const SizedBox(height: 32),
+                  ],
+                ),
               ),
-            ),
-        // tutup Consumer
       ),
     );
   }
@@ -342,9 +324,66 @@ class _MenuTile extends StatelessWidget {
   }
 }
 
+// ── Widget: Logout Tile (merah, ikon pintu keluar) ───────────
+class _LogoutTile extends StatelessWidget {
+  const _LogoutTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: const BorderRadius.only(
+        bottomLeft: Radius.circular(16),
+        bottomRight: Radius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+        child: Row(
+          children: [
+            // Ikon pintu keluar (logout door)
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF0F0),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.logout_rounded,
+                size: 16,
+                color: Color(0xFFDC2626),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                'Keluar',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFDC2626),
+                  inherit: false,         // ← tidak mewarisi tema apapun
+                  decoration: TextDecoration.none,
+                ),
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: Color(0xFFDC2626),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ── Widget Helper: Divider ───────────────────────────────────
 class _Divider extends StatelessWidget {
-  _Divider({super.key});
+  const _Divider({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -358,8 +397,9 @@ class _Divider extends StatelessWidget {
   }
 }
 
+// ── Widget Helper: Permission Chip ───────────────────────────
 class _PermissionChip extends StatelessWidget {
-  _PermissionChip({required this.icon, required this.label});
+  const _PermissionChip({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -379,20 +419,10 @@ class _PermissionChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
-                fontSize: 11, color: Color(0xFF6B7280)),
+            style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
           ),
         ],
       ),
     );
   }
 }
-
-
-
-
-
-
-
-
-

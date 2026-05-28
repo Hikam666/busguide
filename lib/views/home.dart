@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:busguide/core/theme/app_colors.dart';
 import 'package:busguide/templates/header.dart';
 import 'package:busguide/controllers/home_controller.dart';
+import 'package:busguide/controllers/navigasi_controller.dart';
 import 'package:busguide/models/perjalanan.dart';
 import 'package:busguide/models/wisata.dart';
 
@@ -60,9 +61,9 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _SearchBar(),
+              const _SearchBar(),
               const SizedBox(height: 20),
-              _QuickActions(),
+              const _QuickActions(),
               const SizedBox(height: 20),
                 if (ctrl.adaPerjalananAktif) ...[
                   _TripCard(perjalanan: ctrl.perjalananAktif!),
@@ -123,67 +124,128 @@ class _HomeScreenState extends State<HomeScreen> {
 // ==========================================
 
 // ── Search Bar ───────────────────────────────────────────────────────────────
-class _SearchBar extends StatelessWidget {
+class _SearchBar extends StatefulWidget {
+  const _SearchBar();
+
+  @override
+  State<_SearchBar> createState() => _SearchBarState();
+}
+
+class _SearchBarState extends State<_SearchBar> {
+  late TextEditingController _controller;
+  bool _isSearching = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSearch() async {
+    final query = _controller.text.trim();
+    if (query.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Masukkan lokasi tujuan')),
+      );
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() => _isSearching = true);
+
+    final homeCtrl = context.read<HomeController>();
+    final navCtrl = context.read<NavigasiController>();
+    final switcher = TabSwitcher.maybeOf(context);
+
+    try {
+      // Setup navigasi
+      final result = await homeCtrl.setupNavigasi(query);
+
+      if (!mounted) return;
+
+      if (result == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(homeCtrl.searchError)),
+        );
+        setState(() => _isSearching = false);
+        return;
+      }
+
+      // Set halte di NavigasiController
+      navCtrl.pilihHalteAsal(result.halteAsal);
+      navCtrl.pilihHalteTujuan(result.halteTujuan);
+
+      // Clear search bar
+      _controller.clear();
+      setState(() => _isSearching = false);
+
+      // Navigate using TabSwitcher if available (maintains navbar)
+      if (switcher != null) {
+        switcher.switchTab(2); // Tab 2 = NavigasiScreen
+      } else {
+        // Fallback to route navigation
+        Navigator.pushNamed(context, '/user', arguments: 2);
+      }
+    } catch (e) {
+      setState(() => _isSearching = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        // Buka layar navigasi (tab index 2) dan tampilkan search fokus
-        final switcher = TabSwitcher.maybeOf(context);
-        if (switcher != null) {
-          // Jika ada TabSwitcher (pakai MainScreen), pindah ke tab Navigasi
-          switcher.switchTab(2);
-        } else {
-          // Fallback: push route langsung
-          Navigator.pushNamed(context, '/navigasi');
-        }
-      },
-      child: Container(
-        height: 52,
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withOpacity(0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            const SizedBox(width: 16),
-            const Icon(Icons.search, color: AppColors.primary, size: 22),
-            const SizedBox(width: 10),
-            Text(
-              'Mau ke mana hari ini?',
-              style: TextStyle(
-                color: AppColors.textSecondary.withOpacity(0.8),
-                fontSize: 15,
-                fontWeight: FontWeight.w400,
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F2F5), // abu-abu muda, tanpa border & shadow
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 16),
+          const Icon(Icons.search, color: Color(0xFF9E9E9E), size: 22), // ikon abu
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              onSubmitted: (_) => _handleSearch(),
+              enabled: !_isSearching,
+              decoration: InputDecoration(
+                hintText: 'Mau ke mana hari ini?', // placeholder baru
+                hintStyle: const TextStyle(
+                  color: Color(0xFF9E9E9E),
+                  fontSize: 15,
+                ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
               ),
+              style: const TextStyle(fontSize: 15),
             ),
-            const Spacer(),
-            Container(
-              margin: const EdgeInsets.only(right: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'Cari Rute',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+          ),
+          if (_isSearching)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
                 ),
               ),
-            ),
-          ],
-        ),
+            )
+          else
+            const SizedBox(width: 12), // padding kanan saja, tanpa tombol
+        ],
       ),
     );
   }
@@ -191,6 +253,8 @@ class _SearchBar extends StatelessWidget {
 
 // ── Quick Actions ─────────────────────────────────────────────────────────────
 class _QuickActions extends StatelessWidget {
+  const _QuickActions();
+
   @override
   Widget build(BuildContext context) {
     final switcher = TabSwitcher.maybeOf(context);
@@ -214,11 +278,10 @@ class _QuickActions extends StatelessWidget {
           icon: Icons.swap_calls_rounded,
           label: 'Cari Rute',
           onTap: () {
-            // Tab index 2 = NavigasiScreen
             if (switcher != null) {
               switcher.switchTab(2);
             } else {
-              Navigator.pushNamed(context, '/navigasi');
+              Navigator.pushNamed(context, '/user', arguments: 2);
             }
           },
         ),
