@@ -3,7 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:async';
 
-import 'package:busguide/models/osrm_service.dart';
+import 'package:busguide/models/osrm_routes_service.dart';
 import 'package:busguide/models/rute_service.dart';
 import 'package:busguide/models/perjalanan_service.dart';
 import 'package:busguide/models/halte_service.dart';
@@ -11,12 +11,14 @@ import 'package:busguide/models/perjalanan.dart';
 import 'package:busguide/models/rute.dart';
 import 'package:busguide/models/halte.dart';
 import 'package:busguide/core/notification_service.dart';
+import 'package:busguide/utils/polyline_utils.dart';
+import 'package:busguide/utils/temp_cache.dart';
 
 class NavigasiAktifController extends ChangeNotifier {
   final _ruteService = RuteService();
   final _perjalananService = PerjalananService();
   final _halteService = HalteService();
-  final _osrmService = OsrmService();
+  final _osrmRoutesService = OsrmRoutesService();
 
   bool _isLoading = true;
   bool _isAlmostThere = false;
@@ -29,7 +31,10 @@ class NavigasiAktifController extends ChangeNotifier {
   Halte? _halteBerikutnya;
 
   LatLng _lokasiSaatIni = const LatLng(-7.9797, 112.6304);
+  double _headingSaatIni = 0;
   int _sisaMenitTiba = 0;
+  double _kecepatanMps = 6.94; // Default 25 km/jam (dalam m/s)
+  
   StreamSubscription<Position>? _gpsStream;
 
   // ─── GETTERS ─────────────────────────────────────────────
@@ -40,6 +45,7 @@ class NavigasiAktifController extends ChangeNotifier {
   List<RuteHalte> get halteRute => _halteRute;
   Halte? get halteBerikutnya => _halteBerikutnya;
   LatLng get lokasiSaatIni => _lokasiSaatIni;
+  double get headingSaatIni => _headingSaatIni;
   int get sisaMenitTiba => _sisaMenitTiba;
 
   // ─── LOAD DATA AKTIF ──────────────────────────────────────
@@ -55,15 +61,64 @@ class NavigasiAktifController extends ChangeNotifier {
       _perjalananAktif = aktif;
 
       final idRute = aktif.rute?.id;
-      if (idRute != null) {
+      if (idRute != null && idRute > 0) {
         _halteRute = await _halteService.getHalteByRute(idRute);
-        if (_halteRute.length >= 2) {
+
+        // ── Prioritas 1: titik_rute dari database Supabase ──
+        final titikDB = await _ruteService.getTitikRute(idRute);
+        if (titikDB.length >= 2) {
+          final List<LatLng> rawPoints = titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
+          // Pangkas titik (Simplify) agar Map tidak berat me-render
+          _titikPolyline = PolylineUtils.simplify(rawPoints, tolerance: 0.00015);
+          debugPrint('Polyline dari DB (di-simplify): ${_titikPolyline.length} titik dari awal ${rawPoints.length} titik');
+          
+          // Tetap panggil OSRM hanya untuk dapat ETA Real-Time
+          final waypoints = _halteRute.map((h) => LatLng(h.halte.latitude, h.halte.longitude)).toList();
+          final routeData = await _osrmRoutesService.getRoute(waypoints);
+          if (routeData != null) {
+            _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+            if (routeData.durationSeconds > 0) {
+              _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
+            }
+          }
+        } else if (_halteRute.length >= 2) {
+          // ── Prioritas 2: OSRM API ──
+          debugPrint('titik_rute kosong, fallback ke OSRM API');
           final waypoints = _halteRute
               .map((h) => LatLng(h.halte.latitude, h.halte.longitude))
               .toList();
-          final routeData = await _osrmService.getRoute(waypoints);
+          final routeData = await _osrmRoutesService.getRoute(waypoints);
           if (routeData != null) {
             _titikPolyline = routeData.polyline;
+            _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+            if (routeData.durationSeconds > 0) {
+              _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
+            }
+            debugPrint('Polyline dari OSRM: ${_titikPolyline.length} titik');
+          }
+        }
+      } else if (aktif.rute == null) {
+        // Mode Bebas: Gunakan custom tujuan dari Cache jika di database null
+        final customAtauDbTujuan = aktif.halteTujuan ?? TempCache.customTujuanNavigasi;
+        
+        if (customAtauDbTujuan != null) {
+          final pos = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+          _lokasiSaatIni = LatLng(pos.latitude, pos.longitude);
+
+          final waypoints = [
+            _lokasiSaatIni,
+            LatLng(customAtauDbTujuan.latitude, customAtauDbTujuan.longitude)
+          ];
+          
+          final routeData = await _osrmRoutesService.getRoute(waypoints);
+          if (routeData != null) {
+            _titikPolyline = routeData.polyline;
+            _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+            if (routeData.durationSeconds > 0) {
+              _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
+            }
+            debugPrint('Polyline Bebas dari OSRM: ${_titikPolyline.length} titik');
           }
         }
       }
@@ -91,9 +146,10 @@ class NavigasiAktifController extends ChangeNotifier {
       ),
     ).listen((Position pos) {
       _lokasiSaatIni = LatLng(pos.latitude, pos.longitude);
+      _headingSaatIni = pos.heading; // Menyimpan arah pergerakan (0-360)
 
-      // Kalkulasi jarak ke tujuan (kecepatan asumsi 25km/jam = 416 m/menit)
-      final halteTujuan = _perjalananAktif?.halteTujuan;
+      // Kalkulasi jarak ke tujuan dan ETA dinamis
+      final halteTujuan = _perjalananAktif?.halteTujuan ?? TempCache.customTujuanNavigasi;
       if (halteTujuan != null) {
         final jarak = Geolocator.distanceBetween(
           pos.latitude,
@@ -102,7 +158,7 @@ class NavigasiAktifController extends ChangeNotifier {
           halteTujuan.longitude,
         );
 
-        _sisaMenitTiba = (jarak / 416).ceil();
+        _sisaMenitTiba = (jarak / _kecepatanMps / 60).ceil();
         if (_sisaMenitTiba < 1) _sisaMenitTiba = 1;
 
         if (jarak < 500 && !_isAlmostThere) {

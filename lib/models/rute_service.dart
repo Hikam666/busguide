@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'rute.dart';
 
@@ -33,9 +34,10 @@ class RuteService {
         .select('urutan, latitude, longitude')
         .eq('id_rute', idRute)
         .order('urutan');
-    return (data as List)
-        .map((e) => TitikRute.fromMap(e as Map<String, dynamic>))
-        .toList();
+    
+    // Parse list of JSON to List<TitikRute> menggunakan compute (Isolate/Background thread)
+    // agar UI tidak freeze / berat saat data sangat banyak.
+    return compute(_parseTitikRute, data as List<dynamic>);
   }
 
   // Cari rute berdasarkan halte asal dan tujuan
@@ -74,4 +76,9 @@ class RuteService {
         .map((e) => Rute.fromMap(e as Map<String, dynamic>))
         .toList();
   }
+}
+
+// Top-level function wajib untuk compute()
+List<TitikRute> _parseTitikRute(List<dynamic> data) {
+  return data.map((e) => TitikRute.fromMap(e as Map<String, dynamic>)).toList();
 }

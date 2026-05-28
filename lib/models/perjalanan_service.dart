@@ -8,9 +8,9 @@ class PerjalananService {
 
   // Mulai perjalanan baru
   Future<Perjalanan> mulaiPerjalanan({
-    required int idRute,
-    required int idHalteAsal,
-    required int idHalteTujuan,
+    int? idRute,
+    int? idHalteAsal,
+    int? idHalteTujuan,
   }) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) throw Exception('User belum login');
@@ -19,17 +19,17 @@ class PerjalananService {
         .from('perjalanan')
         .insert({
           'id_pengguna': userId,
-          'id_rute': idRute,
-          'halte_asal': idHalteAsal,
-          'halte_tujuan': idHalteTujuan,
+          'id_rute': idRute == 0 || idRute == -1 ? null : idRute,
+          'halte_asal': idHalteAsal == 0 || idHalteAsal == -1 ? null : idHalteAsal,
+          'halte_tujuan': idHalteTujuan == 0 || idHalteTujuan == -1 ? null : idHalteTujuan,
           'status': 'aktif',
           'alarm_aktif': true,
         })
         .select('''
           id, status, waktu_mulai, waktu_selesai, alarm_aktif,
           rute(id, kode, nama),
-          halte_asal:halte!perjalanan_halte_asal_fkey(id, nama, tipe, alamat, latitude, longitude),
-          halte_tujuan:halte!perjalanan_halte_tujuan_fkey(id, nama, tipe, alamat, latitude, longitude)
+          halte_asal:halte_asal(id, nama, tipe, alamat, latitude, longitude),
+          halte_tujuan:halte_tujuan(id, nama, tipe, alamat, latitude, longitude)
         ''')
         .single();
     return Perjalanan.fromMap(data);
@@ -45,8 +45,8 @@ class PerjalananService {
         .select('''
           id, status, waktu_mulai, waktu_selesai, alarm_aktif,
           rute(id, kode, nama),
-          halte_asal:halte!perjalanan_halte_asal_fkey(id, nama, tipe, alamat, latitude, longitude),
-          halte_tujuan:halte!perjalanan_halte_tujuan_fkey(id, nama, tipe, alamat, latitude, longitude)
+          halte_asal:halte_asal(id, nama, tipe, alamat, latitude, longitude),
+          halte_tujuan:halte_tujuan(id, nama, tipe, alamat, latitude, longitude)
         ''')
         .eq('id_pengguna', userId)
         .eq('status', 'aktif')
@@ -132,8 +132,8 @@ class PerjalananService {
 
     var query = _supabase.from('perjalanan').select('''
           id, status, waktu_mulai, waktu_selesai, alarm_aktif,
-          halte_asal:halte!perjalanan_halte_asal_fkey(id, nama, tipe, alamat, latitude, longitude),
-          halte_tujuan:halte!perjalanan_halte_tujuan_fkey(id, nama, tipe, alamat, latitude, longitude),
+          halte_asal:halte_asal(id, nama, tipe, alamat, latitude, longitude),
+          halte_tujuan:halte_tujuan(id, nama, tipe, alamat, latitude, longitude),
           rute:rute!perjalanan_id_rute_fkey(id, kode, nama),
           riwayat_perjalanan(id, id_perjalanan, durasi_menit, estimasi_biaya, catatan)
         ''').eq('id_pengguna', userId);

@@ -29,10 +29,12 @@ class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
       ctrl.addListener(() {
         if (!mounted) return;
         final currentLoc = ctrl.lokasiSaatIni;
+        final currentHeading = ctrl.headingSaatIni;
         if (_lastMapCenter != currentLoc) {
           _lastMapCenter = currentLoc;
           try {
-            _mapController.move(currentLoc, _mapController.camera.zoom);
+            // Putar peta secara otomatis agar menghadap arah jalan
+            _mapController.moveAndRotate(currentLoc, 17.5, currentHeading);
           } catch (_) {} // Abaikan jika map belum siap
         }
       });
@@ -148,7 +150,10 @@ class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
                         mapController: _mapController,
                         options: MapOptions(
                             initialCenter: ctrl.lokasiSaatIni,
-                            initialZoom: 15),
+                            initialZoom: 17.5,
+                            interactionOptions: const InteractionOptions(
+                              flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                            )),
                         children: [
                           TileLayer(
                               urlTemplate:
@@ -178,16 +183,28 @@ class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
                                   )),
                             Marker(
                               point: ctrl.lokasiSaatIni,
-                              width: 40,
-                              height: 40,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                    color: AppColors.primary,
+                              width: 60,
+                              height: 60,
+                              child: Transform.rotate(
+                                angle: ctrl.headingSaatIni * (3.14159 / 180), // Derajat ke radian
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
                                     shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: Colors.white, width: 3)),
-                                child: const Icon(Icons.directions_bus,
-                                    color: Colors.white, size: 20),
+                                    border: Border.all(color: AppColors.primary, width: 3),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.3),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 5),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Center(
+                                    child: Icon(Icons.navigation,
+                                        color: AppColors.primary, size: 30),
+                                  ),
+                                ),
                               ),
                             ),
                           ]),

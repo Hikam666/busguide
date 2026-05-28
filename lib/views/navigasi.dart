@@ -9,6 +9,7 @@ import '../controllers/navigasi_controller.dart';
 import '../controllers/home_controller.dart';
 import '../models/halte.dart';
 import '../models/rute.dart';
+import 'map_picker.dart';
 
 // ==========================================
 // 1. CLASS UTAMA
@@ -38,7 +39,6 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
     });
   }
 
-  // ─── UI BOTTOM SHEET PILIH HALTE ───────────────────────────
   void _bukaPilihHalte(NavigasiController ctrl, {required bool isAsal}) {
     showModalBottomSheet(
       context: context,
@@ -52,6 +52,34 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
             Text(isAsal ? 'Pilih Halte Asal' : 'Pilih Halte Tujuan',
                 style: const TextStyle(
                     fontSize: 18, fontWeight: FontWeight.bold)),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.map, color: Colors.blue),
+              title: const Text('Pilih Lokasi dari Peta (Custom)'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final selectedLatLng = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MapPickerScreen(
+                      initialCenter: ctrl.lokasiSaatIni,
+                    ),
+                  ),
+                );
+                
+                if (selectedLatLng != null && selectedLatLng is LatLng) {
+                  final h = Halte(
+                    id: -1, 
+                    nama: 'Lokasi Peta (${selectedLatLng.latitude.toStringAsFixed(3)}, ${selectedLatLng.longitude.toStringAsFixed(3)})', 
+                    tipe: 'custom', 
+                    latitude: selectedLatLng.latitude, 
+                    longitude: selectedLatLng.longitude,
+                  );
+                  if (isAsal) ctrl.pilihHalteAsal(h);
+                  else ctrl.pilihHalteTujuan(h);
+                }
+              },
+            ),
             const Divider(),
             Expanded(
               child: ListView.builder(
@@ -80,6 +108,8 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
       },
     );
   }
+
+
 
   Future<void> _handleCariRute(NavigasiController ctrl) async {
     final error = await ctrl.cariRute();

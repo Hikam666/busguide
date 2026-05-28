@@ -5,16 +5,18 @@ import 'package:latlong2/latlong.dart';
 import 'package:busguide/models/halte_service.dart';
 import 'package:busguide/models/rute_service.dart';
 import 'package:busguide/models/perjalanan_service.dart';
-import 'package:busguide/models/osrm_service.dart';
+import 'package:busguide/models/osrm_routes_service.dart';
+
 import 'package:busguide/models/halte.dart';
 import 'package:busguide/models/rute.dart';
-import 'package:busguide/models/perjalanan.dart';
+import 'package:busguide/utils/polyline_utils.dart';
+import 'package:busguide/utils/temp_cache.dart';
 
 class NavigasiController extends ChangeNotifier {
   final _ruteService = RuteService();
   final _perjalananService = PerjalananService();
   final _halteService = HalteService();
-  final _osrmService = OsrmService();
+  final _osrmRoutesService = OsrmRoutesService();
 
   bool _isLoading = false;
   bool _isMapLoading = false;
@@ -81,8 +83,9 @@ class NavigasiController extends ChangeNotifier {
   Future<void> _dapatkanLokasiAwal() async {
     try {
       final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 5),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       _lokasiSaatIni = LatLng(pos.latitude, pos.longitude);
       notifyListeners();
@@ -157,9 +160,17 @@ class NavigasiController extends ChangeNotifier {
             idHalteTujuan: _halteTujuan!.id,
           );
           _ruteTersedia = rute;
-          
-          if (rute.isEmpty) return 'Tidak ada rute dari lokasi Anda ke tujuan tersebut.';
-
+          if (rute.isEmpty) {
+            _ruteTersedia = [
+              const Rute(id: 0, kode: 'BEBAS', nama: 'Navigasi Bebas (Peta)')
+            ];
+            _halteRute = [
+              RuteHalte(urutan: 1, halte: _halteAsal!),
+              RuteHalte(urutan: 2, halte: _halteTujuan!),
+            ];
+            await _loadPolyline(0);
+            return null;
+        }
           final realHalteRute = await _halteService.getHalteByRute(rute.first.id);
           _halteRute = [
             RuteHalte(urutan: 0, halte: _halteAsal!),
@@ -176,8 +187,17 @@ class NavigasiController extends ChangeNotifier {
         );
         _ruteTersedia = rute;
 
-        if (rute.isEmpty) return 'Tidak ada rute yang menghubungkan kedua halte ini.';
-
+        if (rute.isEmpty) {
+            _ruteTersedia = [
+              const Rute(id: 0, kode: 'BEBAS', nama: 'Navigasi Bebas (Peta)')
+            ];
+            _halteRute = [
+              RuteHalte(urutan: 1, halte: _halteAsal!),
+              RuteHalte(urutan: 2, halte: _halteTujuan!),
+            ];
+            await _loadPolyline(0);
+            return null;
+        }
         _halteRute = await _halteService.getHalteByRute(rute.first.id);
         await _loadPolyline(rute.first.id);
         return null;
@@ -197,33 +217,42 @@ class NavigasiController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Cari halte asal sebenarnya jika dari Lokasi Saat Ini (id=0), null-kan agar dicatat sbg GPS
+      final idAsalReal = _halteAsal!.id == 0 ? null : _halteAsal!.id;
+
       if (rute.id == 0) {
-        // Perjalanan lokal / Menuju Halte (jangan simpan di DB)
+        // Jika titik custom (-1), kita cache sementara karena di database bakal null
+        if (_halteTujuan!.id == -1) {
+          TempCache.customTujuanNavigasi = _halteTujuan;
+        } else {
+          TempCache.customTujuanNavigasi = null;
+        }
+
+        // Perjalanan lokal / Menuju Halte (simpan di DB sebagai rute bebas)
+        final perjalanan = await _perjalananService.mulaiPerjalanan(
+          idRute: null,
+          idHalteAsal: idAsalReal,
+          idHalteTujuan: _halteTujuan!.id,
+        );
+
+        if (!_alarmAktif) {
+          await _perjalananService.toggleAlarm(
+            idPerjalanan: perjalanan.id,
+            aktif: false,
+          );
+        }
+
         _halteRute = [
           RuteHalte(urutan: 1, halte: _halteAsal!),
           RuteHalte(urutan: 2, halte: _halteTujuan!),
         ];
         await _loadPolyline(0);
-        // Buat mock Perjalanan Aktif
-        final mockPerjalanan = Perjalanan(
-          id: -1,
-          status: 'aktif',
-          waktuMulai: DateTime.now(),
-          alarmAktif: _alarmAktif,
-          rute: rute,
-          halteAsal: _halteAsal,
-          halteTujuan: _halteTujuan,
-        );
-        // Set ke NavigasiAktifController atau via UI
-        // Karena ini local mock, tandai state bahwa ada perjalanan aktif virtual
         _adaPerjalananAktif = true;
         notifyListeners();
         return null;
       }
 
       // Perjalanan Bus Normal
-      // Cari halte asal sebenarnya jika dari Lokasi Saat Ini
-      final idAsalReal = _halteAsal!.id == 0 ? _cariHalteTerdekat().id : _halteAsal!.id;
       
       final perjalanan = await _perjalananService.mulaiPerjalanan(
         idRute: rute.id,
@@ -266,16 +295,28 @@ class NavigasiController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      if (idRute > 0) {
+        // ── Prioritas 1: titik_rute dari database Supabase ──
+        final titikDB = await _ruteService.getTitikRute(idRute);
+        if (titikDB.length >= 2) {
+          final List<LatLng> rawPoints = titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
+          _titikPolyline = PolylineUtils.simplify(rawPoints, tolerance: 0.00015);
+          return;
+        }
+      }
+
+      // ── Prioritas 2: OSRM API ──
       if (_halteRute.length >= 2) {
         final waypoints = _halteRute
             .map((h) => LatLng(h.halte.latitude, h.halte.longitude))
             .toList();
-        final routeData = await _osrmService.getRoute(waypoints);
+        final routeData = await _osrmRoutesService.getRoute(waypoints);
         if (routeData != null) {
           _titikPolyline = routeData.polyline;
         }
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('loadPolyline error: $e');
     } finally {
       _isMapLoading = false;
       notifyListeners();
