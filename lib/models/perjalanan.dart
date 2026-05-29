@@ -63,6 +63,22 @@ class Perjalanan {
     this.riwayat = const [],
   });
 
+  Perjalanan copyWith({
+    bool? alarmAktif,
+  }) {
+    return Perjalanan(
+      id: id,
+      status: status,
+      waktuMulai: waktuMulai,
+      waktuSelesai: waktuSelesai,
+      alarmAktif: alarmAktif ?? this.alarmAktif,
+      rute: rute,
+      halteAsal: halteAsal,
+      halteTujuan: halteTujuan,
+      riwayat: riwayat,
+    );
+  }
+
   factory Perjalanan.fromMap(Map<String, dynamic> map) {
     // Parse riwayat_perjalanan (bisa List atau Map)
     List<RiwayatPerjalanan> riwayat = [];

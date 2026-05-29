@@ -278,9 +278,8 @@ class NavigasiAktifController extends ChangeNotifier {
       idPerjalanan: _perjalananAktif!.id,
       aktif: !isAlarmActive,
     );
-    // Refresh data perjalanan aktif
-    final aktif = await _perjalananService.getPerjalananAktif();
-    _perjalananAktif = aktif;
+    // Refresh data perjalanan aktif (gunakan copyWith agar custom route tidak hilang)
+    _perjalananAktif = _perjalananAktif!.copyWith(alarmAktif: !isAlarmActive);
     notifyListeners();
   }
 

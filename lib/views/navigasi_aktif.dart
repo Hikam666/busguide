@@ -270,6 +270,22 @@ class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
                                       ],
                                     ),
                                   ),
+                                  // Tombol Toggle Alarm
+                                  if (ctrl.perjalananAktif != null)
+                                    IconButton(
+                                      icon: Icon(
+                                        ctrl.perjalananAktif!.alarmAktif
+                                            ? Icons.notifications_active
+                                            : Icons.notifications_off,
+                                        color: ctrl.perjalananAktif!.alarmAktif
+                                            ? AppColors.primary
+                                            : Colors.grey,
+                                      ),
+                                      onPressed: () {
+                                        ctrl.toggleAlarm();
+                                      },
+                                      tooltip: 'Aktifkan/Matikan Alarm',
+                                    ),
                                 ],
                               ),
                               const Divider(height: 32),
