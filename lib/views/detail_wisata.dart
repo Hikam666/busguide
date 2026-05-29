@@ -554,31 +554,7 @@ class _RuteDetailCard extends StatelessWidget {
               ),
             ),
           ),
-          // Tombol Navigasi
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => Navigator.pushNamed(context, '/navigasi_aktif'),
-                icon: const Icon(Icons.navigation_rounded, size: 20),
-                label: const Text('Navigasi ke sini'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0D3B6E),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  textStyle: const TextStyle(
-                    fontFamily: 'DMSans',
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
-            ),
-          ),
+
         ],
       ),
     );
@@ -602,40 +578,7 @@ class _MapPreview extends StatelessWidget {
         children: [
           Container(color: const Color(0xFFD6E8C8)),
           CustomPaint(painter: _MapGridPainter()),
-          Positioned(
-            left: 12,
-            bottom: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(25),
-                    blurRadius: 6,
-                  )
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.circle, color: Color(0xFF4CAF50), size: 8),
-                  SizedBox(width: 6),
-                  Text(
-                    'LALU LINTAS LANCAR',
-                    style: TextStyle(
-                      fontFamily: 'DMSans',
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1A1A2E),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+
           if (onTap != null)
             Positioned(
               right: 12,

@@ -454,20 +454,11 @@ class _RuteTersediaCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              const Text('~25 mnt',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.green)),
+              if (rute.estimasiMenit != null)
+                Text('~${rute.estimasiMenit} mnt',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.green)),
             ],
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-                color: const Color(0xFFF3F4F6),
-                borderRadius: BorderRadius.circular(6)),
-            child: const Text('Lalu Lintas: Lancar',
-                style: TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
           ),
           const SizedBox(height: 16),
           // Timeline
