@@ -138,8 +138,6 @@ class _DetailWisataScreenState extends State<DetailWisataScreen> {
                   ),
                   const SizedBox(height: 12),
                   ...ruteList.map((rute) => _RuteListItem(rute: rute)),
-                  const SizedBox(height: 16),
-                  _RuteDetailCard(rute: ruteList.first),
                 ] else ...[
                   const SizedBox(height: 16),
                   const _StateInfo(

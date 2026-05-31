@@ -454,10 +454,6 @@ class _RuteTersediaCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              if (rute.estimasiMenit != null)
-                Text('~${rute.estimasiMenit} mnt',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, color: Colors.green)),
             ],
           ),
           const SizedBox(height: 16),
