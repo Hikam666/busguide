@@ -2,6 +2,7 @@ class Bus {
   final int id;
   final int idPo;
   final String nomorPolisi;
+  final String? namaBus;
   final String? tipe; // 'ekonomi' | 'bisnis' | 'eksekutif'
   final int? kapasitas;
   final List<String> fasilitas;
@@ -11,6 +12,7 @@ class Bus {
     required this.id,
     required this.idPo,
     required this.nomorPolisi,
+    this.namaBus,
     this.tipe,
     this.kapasitas,
     this.fasilitas = const [],
@@ -21,6 +23,7 @@ class Bus {
         id: (map['id'] as num).toInt(),
         idPo: (map['id_po'] as num).toInt(),
         nomorPolisi: map['nomor_polisi'] as String,
+        namaBus: map['nama_bus'] as String?,
         tipe: map['tipe'] as String?,
         kapasitas:
             map['kapasitas'] != null ? (map['kapasitas'] as num).toInt() : null,
@@ -44,6 +47,9 @@ class PoBus {
   final String? tagline;
   final String? deskripsi;
   final String? logoUrl;
+  final String? jenisLayanan;
+  final String? fasilitas;
+  final String? kontak;
 
   const PoBus({
     required this.id,
@@ -51,6 +57,9 @@ class PoBus {
     this.tagline,
     this.deskripsi,
     this.logoUrl,
+    this.jenisLayanan,
+    this.fasilitas,
+    this.kontak,
   });
 
   factory PoBus.fromMap(Map<String, dynamic> map) => PoBus(
@@ -59,6 +68,9 @@ class PoBus {
         tagline: map['tagline'] as String?,
         deskripsi: map['deskripsi'] as String?,
         logoUrl: map['logo_url'] as String?,
+        jenisLayanan: map['jenis_layanan'] as String?,
+        fasilitas: map['fasilitas'] as String?,
+        kontak: map['kontak'] as String?,
       );
 
   @override

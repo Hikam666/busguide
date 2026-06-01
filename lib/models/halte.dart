@@ -6,6 +6,8 @@ class Halte {
   final double latitude;
   final double longitude;
   final double? jarakMeter; // computed field saat tampil dengan jarak
+  final String? fasilitas;
+  final String? foto;
 
   const Halte({
     required this.id,
@@ -15,6 +17,8 @@ class Halte {
     required this.latitude,
     required this.longitude,
     this.jarakMeter,
+    this.fasilitas,
+    this.foto,
   });
 
   factory Halte.lokasiSaatIni(double lat, double lon) => Halte(
@@ -33,6 +37,8 @@ class Halte {
         alamat: map['alamat'] as String?,
         latitude: (map['latitude'] as num).toDouble(),
         longitude: (map['longitude'] as num).toDouble(),
+        fasilitas: map['fasilitas'] as String?,
+        foto: map['foto'] as String?,
       );
 
   Map<String, dynamic> toMap() => {
@@ -42,6 +48,8 @@ class Halte {
         'alamat': alamat,
         'latitude': latitude,
         'longitude': longitude,
+        'fasilitas': fasilitas,
+        'foto': foto,
       };
 
   Halte withJarak(double jarak) => Halte(
@@ -51,6 +59,8 @@ class Halte {
         alamat: alamat,
         latitude: latitude,
         longitude: longitude,
+        fasilitas: fasilitas,
+        foto: foto,
         jarakMeter: jarak,
       );
 

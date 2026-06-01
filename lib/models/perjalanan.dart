@@ -46,6 +46,7 @@ class Perjalanan {
   final DateTime waktuMulai;
   final DateTime? waktuSelesai;
   final bool alarmAktif;
+  final double? jarak;
   final Rute? rute;
   final Halte? halteAsal;
   final Halte? halteTujuan;
@@ -57,6 +58,7 @@ class Perjalanan {
     required this.waktuMulai,
     this.waktuSelesai,
     required this.alarmAktif,
+    this.jarak,
     this.rute,
     this.halteAsal,
     this.halteTujuan,
@@ -72,6 +74,7 @@ class Perjalanan {
       waktuMulai: waktuMulai,
       waktuSelesai: waktuSelesai,
       alarmAktif: alarmAktif ?? this.alarmAktif,
+      jarak: jarak,
       rute: rute,
       halteAsal: halteAsal,
       halteTujuan: halteTujuan,
@@ -100,6 +103,7 @@ class Perjalanan {
           ? DateTime.parse(map['waktu_selesai'] as String).toLocal()
           : null,
       alarmAktif: map['alarm_aktif'] as bool? ?? false,
+      jarak: map['jarak'] != null ? (map['jarak'] as num).toDouble() : null,
       rute: map['rute'] != null
           ? Rute.fromMap(map['rute'] as Map<String, dynamic>)
           : null,
