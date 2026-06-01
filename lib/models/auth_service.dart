@@ -208,6 +208,45 @@ class AuthService {
 
     return publicUrl;
   }
+  // ─── RESET PASSWORD (KIRIM OTP) ─────────────────────────
+  Future<void> resetPassword({required String email}) async {
+    try {
+      await _supabase.auth.resetPasswordForEmail(email);
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception('Terjadi kesalahan: $e');
+    }
+  }
+
+  // ─── VERIFIKASI OTP & UPDATE PASSWORD ─────────────────────
+  Future<void> verifyOtpAndResetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    try {
+      // Verifikasi OTP
+      final response = await _supabase.auth.verifyOTP(
+        email: email,
+        token: otp,
+        type: OtpType.recovery,
+      );
+      
+      if (response.user == null) {
+        throw Exception('Kode OTP tidak valid atau kedaluwarsa');
+      }
+
+      // Setelah berhasil verifikasi OTP, sesi recovery tercipta. Kita bisa update password.
+      await _supabase.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception('Terjadi kesalahan: $e');
+    }
+  }
 
   // ─── CEK SESSION AKTIF ───────────────────────────────────
   Future<Map<String, dynamic>?> getActiveSession() async {

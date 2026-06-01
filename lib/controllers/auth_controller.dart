@@ -134,4 +134,59 @@ class AuthController extends ChangeNotifier {
     await _authService.logout();
     notifyListeners();
   }
+
+  // ─── RESET PASSWORD ──────────────────────────────────────
+  Future<bool> resetPassword(String email) async {
+    if (email.trim().isEmpty) {
+      _setError('Email tidak boleh kosong');
+      return false;
+    }
+
+    _setLoading(true);
+    _setError(null);
+
+    try {
+      await _authService.resetPassword(email: email.trim());
+      return true;
+    } catch (e) {
+      _setError(e.toString().replaceAll('Exception: ', ''));
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // ─── VERIFIKASI OTP & UPDATE PASSWORD ───────────────────
+  Future<bool> verifyOtpAndResetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    if (email.trim().isEmpty || otp.trim().isEmpty || newPassword.trim().isEmpty) {
+      _setError('Semua field wajib diisi');
+      return false;
+    }
+    
+    if (newPassword.length < 6) {
+      _setError('Password minimal 6 karakter');
+      return false;
+    }
+
+    _setLoading(true);
+    _setError(null);
+
+    try {
+      await _authService.verifyOtpAndResetPassword(
+        email: email.trim(),
+        otp: otp.trim(),
+        newPassword: newPassword.trim(),
+      );
+      return true;
+    } catch (e) {
+      _setError(e.toString().replaceAll('Exception: ', ''));
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
 }

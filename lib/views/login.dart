@@ -214,7 +214,134 @@ class _TombolLupaSandi extends StatelessWidget {
     return Align(
       alignment: Alignment.centerRight,
       child: TextButton(
-        onPressed: () {},
+        onPressed: () {
+          final emailController = TextEditingController();
+          final otpController = TextEditingController();
+          final passwordController = TextEditingController();
+          bool isEmailSent = false;
+          bool isLoading = false;
+
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => StatefulBuilder(
+              builder: (context, setStateDialog) {
+                return AlertDialog(
+                  title: Text(isEmailSent ? 'Masukkan OTP' : 'Reset Password'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!isEmailSent) ...[
+                        const Text('Kode OTP 6-digit akan dikirimkan ke email Anda.'),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: emailController,
+                          decoration: InputDecoration(
+                            hintText: 'Masukkan email terdaftar',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                      ] else ...[
+                        const Text('Cek kotak masuk email Anda untuk kode OTP.'),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: otpController,
+                          maxLength: 6,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(letterSpacing: 8, fontSize: 18, fontWeight: FontWeight.bold),
+                          decoration: InputDecoration(
+                            hintText: 'Kode 6 Digit',
+                            hintStyle: const TextStyle(letterSpacing: 0, fontSize: 14, fontWeight: FontWeight.normal),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: passwordController,
+                          obscureText: true,
+                          decoration: InputDecoration(
+                            hintText: 'Password Baru',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: isLoading ? null : () => Navigator.pop(ctx),
+                      child: const Text('Batal'),
+                    ),
+                    ElevatedButton(
+                      onPressed: isLoading
+                          ? null
+                          : () async {
+                              final ctrl = context.read<AuthController>();
+                              setStateDialog(() => isLoading = true);
+
+                              if (!isEmailSent) {
+                                // TAHAP 1: KIRIM EMAIL
+                                final success = await ctrl.resetPassword(emailController.text);
+                                setStateDialog(() {
+                                  isLoading = false;
+                                  if (success) isEmailSent = true;
+                                });
+                                if (!success && context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(ctrl.errorMessage ?? 'Gagal mengirim email'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              } else {
+                                // TAHAP 2: VERIFIKASI OTP & RESET PASSWORD
+                                final success = await ctrl.verifyOtpAndResetPassword(
+                                  email: emailController.text,
+                                  otp: otpController.text,
+                                  newPassword: passwordController.text,
+                                );
+                                setStateDialog(() => isLoading = false);
+                                
+                                if (context.mounted) {
+                                  if (success) {
+                                    Navigator.pop(ctx);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Password berhasil direset! Anda telah login.'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                    // Arahkan ke rute user (atau admin) setelah reset (otomatis login)
+                                    // Biasanya kita bisa biarkan user refresh auth state atau pushNamed
+                                    Navigator.pushReplacementNamed(context, '/user');
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(ctrl.errorMessage ?? 'Gagal verifikasi OTP'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D6EFD)),
+                      child: isLoading
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : Text(isEmailSent ? 'Simpan' : 'Kirim OTP', style: const TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                );
+              },
+            ),
+          );
+        },
         child: const Text('Lupa kata sandi?', style: TextStyle(color: Color(0xFF0D6EFD))),
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/api_client.dart';
 import 'halte.dart';
 import 'rute.dart';
 
@@ -16,14 +17,14 @@ class HalteService {
         .toList();
   }
 
-  // Ambil detail satu halte
+  // Ambil detail satu halte (Menggunakan HTTP murni sesuai tugas)
   Future<Halte> getDetailHalte(int idHalte) async {
-    final data = await _supabase
-        .from('halte')
-        .select('id, nama, tipe, alamat, latitude, longitude')
-        .eq('id', idHalte)
-        .single();
-    return Halte.fromMap(data);
+    final data = await ApiClient.get(
+      table: 'halte',
+      query: 'select=id,nama,tipe,alamat,latitude,longitude&id=eq.$idHalte',
+    );
+    if (data.isEmpty) throw Exception('Halte tidak ditemukan');
+    return Halte.fromMap(data.first as Map<String, dynamic>);
   }
 
   // Ambil daftar halte dalam satu rute (urut berdasarkan urutan)

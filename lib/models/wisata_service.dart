@@ -1,18 +1,18 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/api_client.dart';
 import 'wisata.dart';
 import 'rute.dart';
 
 class WisataService {
   final _supabase = Supabase.instance.client;
 
-  // Ambil semua wisata
+  // Ambil semua wisata (Menggunakan HTTP murni sesuai tugas)
   Future<List<Wisata>> getSemuaWisata() async {
-    final data = await _supabase
-        .from('wisata')
-        .select(
-            'id, nama, alamat, kota, deskripsi, tarif, jam_buka, jam_tutup, foto_url')
-        .order('nama');
-    return (data as List)
+    final data = await ApiClient.get(
+      table: 'wisata',
+      query: 'select=id,nama,alamat,kota,deskripsi,tarif,jam_buka,jam_tutup,foto_url&order=nama.asc',
+    );
+    return data
         .map((e) => Wisata.fromMap(e as Map<String, dynamic>))
         .toList();
   }
