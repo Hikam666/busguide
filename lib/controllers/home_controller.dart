@@ -37,21 +37,31 @@ class HomeController extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
+    // 1. Ambil perjalanan aktif (jika ada)
     try {
-      // Ambil perjalanan aktif (jika ada) lalu riwayat/rekomendasi
       _perjalananAktif = await _perjalananService.getPerjalananAktif();
-
-      final riwayat = await _perjalananService.getRiwayatPerjalanan();
-      final wisata = await _wisataService.getSemuaWisata();
-
-      _riwayatList = riwayat.take(2).toList(); // Tampilkan 2 riwayat terakhir
-      _rekomendasiList = wisata.take(3).toList(); // Tampilkan 3 rekomendasi
-    } catch (_) {
-      // Error ditangani secara diam-diam; state kosong akan tampil empty state
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+    } catch (e) {
+      debugPrint('HomeController: Error loading active journey: $e');
     }
+
+    // 2. Ambil riwayat perjalanan
+    try {
+      final riwayat = await _perjalananService.getRiwayatPerjalanan();
+      _riwayatList = riwayat.take(2).toList(); // Tampilkan 2 riwayat terakhir
+    } catch (e) {
+      debugPrint('HomeController: Error loading trip history: $e');
+    }
+
+    // 3. Ambil rekomendasi wisata
+    try {
+      final wisata = await _wisataService.getSemuaWisata();
+      _rekomendasiList = wisata.take(3).toList(); // Tampilkan 3 rekomendasi
+    } catch (e) {
+      debugPrint('HomeController: Error loading recommendations: $e');
+    }
+
+    _isLoading = false;
+    notifyListeners();
   }
 
   // ─── GEOCODE LOKASI (cari lokasi dari text) ──────────────

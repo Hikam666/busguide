@@ -15,17 +15,23 @@ class EditProfilScreen extends StatefulWidget {
 
 class _EditProfilScreenState extends State<EditProfilScreen> {
   final _namaController = TextEditingController();
+  final _noHpController = TextEditingController();
+  final _alamatController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     final profilCtrl = context.read<ProfilController>();
     _namaController.text = profilCtrl.nama;
+    _noHpController.text = profilCtrl.noHp;
+    _alamatController.text = profilCtrl.alamat;
   }
 
   @override
   void dispose() {
     _namaController.dispose();
+    _noHpController.dispose();
+    _alamatController.dispose();
     super.dispose();
   }
 
@@ -39,10 +45,12 @@ class _EditProfilScreenState extends State<EditProfilScreen> {
 
     if (pickedFile != null) {
       final file = File(pickedFile.path);
-      await context.read<ProfilController>().uploadAvatar(file);
+      if (!mounted) return;
+      final profilCtrl = context.read<ProfilController>();
+      await profilCtrl.uploadAvatar(file);
       
       if (mounted) {
-        final error = context.read<ProfilController>().error;
+        final error = profilCtrl.error;
         if (error != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(error)),
@@ -58,6 +66,9 @@ class _EditProfilScreenState extends State<EditProfilScreen> {
 
   Future<void> _simpan() async {
     final nama = _namaController.text.trim();
+    final noHp = _noHpController.text.trim();
+    final alamat = _alamatController.text.trim();
+
     if (nama.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Nama tidak boleh kosong')),
@@ -65,10 +76,15 @@ class _EditProfilScreenState extends State<EditProfilScreen> {
       return;
     }
 
-    await context.read<ProfilController>().updateProfile(nama);
+    final profilCtrl = context.read<ProfilController>();
+    await profilCtrl.updateProfile(
+      newNama: nama,
+      newNoHp: noHp.isEmpty ? null : noHp,
+      newAlamat: alamat.isEmpty ? null : alamat,
+    );
 
     if (mounted) {
-      final error = context.read<ProfilController>().error;
+      final error = profilCtrl.error;
       if (error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(error)),
@@ -94,104 +110,180 @@ class _EditProfilScreenState extends State<EditProfilScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Foto Profil ───────────────────────────
-                Center(
-                  child: Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: AppColors.primary,
-                        backgroundImage: ctrl.profile?.avatarUrl != null
-                            ? NetworkImage(ctrl.profile!.avatarUrl!)
-                            : null,
-                        child: ctrl.profile?.avatarUrl == null
-                            ? Text(
-                                ctrl.initials,
-                                style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
-                              )
-                            : null,
-                      ),
-                      GestureDetector(
-                        onTap: ctrl.isLoading ? null : _pickAndUploadImage,
-                        child: Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ── Foto Profil ───────────────────────────
+                        Center(
+                          child: Stack(
+                            alignment: Alignment.bottomRight,
+                            children: [
+                              CircleAvatar(
+                                radius: 50,
+                                backgroundColor: AppColors.primary,
+                                backgroundImage: ctrl.profile?.avatarUrl != null
+                                    ? NetworkImage(ctrl.profile!.avatarUrl!)
+                                    : null,
+                                child: ctrl.profile?.avatarUrl == null
+                                    ? Text(
+                                        ctrl.initials,
+                                        style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                                      )
+                                    : null,
+                              ),
+                              GestureDetector(
+                                onTap: ctrl.isLoading ? null : _pickAndUploadImage,
+                                child: Container(
+                                  width: 34,
+                                  height: 34,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(Icons.camera_alt, color: AppColors.primary, size: 18),
+                                ),
                               ),
                             ],
                           ),
-                          child: Icon(Icons.camera_alt, color: AppColors.primary, size: 18),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
+                        const SizedBox(height: 32),
 
-                const Text(
-                  'Nama Lengkap',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF374151),
+                        const Text(
+                          'Nama Lengkap',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF374151),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _namaController,
+                          decoration: InputDecoration(
+                            hintText: 'Masukkan nama lengkap',
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppColors.primary, width: 2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        const Text(
+                          'No. Telepon / HP',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF374151),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _noHpController,
+                          keyboardType: TextInputType.phone,
+                          decoration: InputDecoration(
+                            hintText: 'Contoh: 081234567890',
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppColors.primary, width: 2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        const Text(
+                          'Alamat Lengkap',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF374151),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _alamatController,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            hintText: 'Masukkan alamat lengkap rumah / domisili',
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppColors.primary, width: 2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        const Text(
+                          'Email (Tidak dapat diubah)',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF374151),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          initialValue: ctrl.email,
+                          readOnly: true,
+                          style: const TextStyle(color: Colors.grey),
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: const Color(0xFFF3F4F6),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _namaController,
-                  decoration: InputDecoration(
-                    hintText: 'Masukkan nama lengkap',
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Email (Tidak dapat diubah)',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF374151),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  initialValue: ctrl.email,
-                  readOnly: true,
-                  style: const TextStyle(color: Colors.grey),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: const Color(0xFFF3F4F6),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const Spacer(),
+                const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   height: 48,

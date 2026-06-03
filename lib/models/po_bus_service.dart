@@ -8,7 +8,7 @@ class PoBusService {
   Future<List<PoBus>> getSemuaPoBus() async {
     final data = await _supabase
         .from('po_bus')
-        .select('id, nama, tagline, deskripsi, logo_url')
+        .select('id, nama, tagline, deskripsi, logo_url, jenis_layanan, fasilitas, kontak')
         .order('nama');
     return (data as List)
         .map((e) => PoBus.fromMap(e as Map<String, dynamic>))
@@ -19,7 +19,7 @@ class PoBusService {
   Future<PoBus> getDetailPoBus(int idPoBus) async {
     final data = await _supabase
         .from('po_bus')
-        .select('id, nama, tagline, deskripsi, logo_url')
+        .select('id, nama, tagline, deskripsi, logo_url, jenis_layanan, fasilitas, kontak')
         .eq('id', idPoBus)
         .single();
     return PoBus.fromMap(data);

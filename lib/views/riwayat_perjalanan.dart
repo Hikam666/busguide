@@ -305,14 +305,23 @@ class _TripCard extends StatelessWidget {
                 ),
               ],
             ),
-            // Halte yang dilewati
-            if (perjalanan.riwayat.isNotEmpty && !_isCancelled) ...[
+            // Durasi dan Halte yang dilewati
+            if ((perjalanan.durasiLabel != null || perjalanan.riwayat.isNotEmpty) && !_isCancelled) ...[
               const SizedBox(height: 10),
               Row(
                 children: [
-                  const Icon(Icons.location_on_outlined, size: 13, color: Color(0xFF9CA3AF)),
-                  const SizedBox(width: 5),
-                  Text('${perjalanan.riwayat.length} halte dilewati', style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+                  if (perjalanan.durasiLabel != null) ...[
+                    const Icon(Icons.timer_outlined, size: 13, color: Color(0xFF9CA3AF)),
+                    const SizedBox(width: 5),
+                    Text('Durasi: ${perjalanan.durasiLabel!}', style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+                    if (perjalanan.riwayat.isNotEmpty)
+                      const Text('  •  ', style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 12)),
+                  ],
+                  if (perjalanan.riwayat.isNotEmpty) ...[
+                    const Icon(Icons.location_on_outlined, size: 13, color: Color(0xFF9CA3AF)),
+                    const SizedBox(width: 5),
+                    Text('${perjalanan.riwayat.length} halte dilewati', style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+                  ],
                 ],
               ),
             ],

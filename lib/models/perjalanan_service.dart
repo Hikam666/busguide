@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'perjalanan.dart';
+import '../utils/temp_cache.dart';
 
 class PerjalananService {
   final _supabase = Supabase.instance.client;
@@ -14,6 +15,21 @@ class PerjalananService {
   }) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) throw Exception('User belum login');
+
+    // Auto-cancel any existing active journeys for this user to prevent multiple active journeys
+    try {
+      await _supabase
+          .from('perjalanan')
+          .update({
+            'status': 'dibatalkan',
+            'waktu_selesai': DateTime.now().toIso8601String(),
+            'alarm_aktif': false,
+          })
+          .eq('id_pengguna', userId)
+          .eq('status', 'aktif');
+    } catch (_) {
+      // Ignore if there are no existing active journeys or if updating fails
+    }
 
     final data = await _supabase
         .from('perjalanan')
@@ -37,6 +53,10 @@ class PerjalananService {
 
   // Ambil perjalanan aktif user saat ini (jika ada)
   Future<Perjalanan?> getPerjalananAktif() async {
+    if (TempCache.inMemoryPerjalanan != null) {
+      return TempCache.inMemoryPerjalanan;
+    }
+
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return null;
 
@@ -60,6 +80,13 @@ class PerjalananService {
     required int idPerjalanan,
     required int durasiMenit,
   }) async {
+    if (idPerjalanan < 0) {
+      if (TempCache.inMemoryPerjalanan?.id == idPerjalanan) {
+        TempCache.inMemoryPerjalanan = null;
+      }
+      return;
+    }
+
     final waktuSelesai = DateTime.now().toIso8601String();
     
     // Update status perjalanan
@@ -84,6 +111,13 @@ class PerjalananService {
 
   // Batalkan perjalanan
   Future<void> batalkanPerjalanan(int idPerjalanan) async {
+    if (idPerjalanan < 0) {
+      if (TempCache.inMemoryPerjalanan?.id == idPerjalanan) {
+        TempCache.inMemoryPerjalanan = null;
+      }
+      return;
+    }
+
     await _supabase.from('perjalanan').update({
       'status': 'dibatalkan',
       'waktu_selesai': DateTime.now().toIso8601String(),
@@ -113,9 +147,9 @@ class PerjalananService {
         .from('perjalanan')
         .select('''
           id, status, waktu_mulai, waktu_selesai, alarm_aktif,
-          rute(id, kode, nama),
-          halte_asal:halte!perjalanan_halte_asal_fkey(id, nama, tipe, alamat, latitude, longitude),
-          halte_tujuan:halte!perjalanan_halte_tujuan_fkey(id, nama, tipe, alamat, latitude, longitude),
+          rute:rute!perjalanan_id_rute_fkey(id, kode, nama),
+          halte_asal:halte_asal(id, nama, tipe, alamat, latitude, longitude),
+          halte_tujuan:halte_tujuan(id, nama, tipe, alamat, latitude, longitude),
           riwayat_perjalanan(id, id_perjalanan, durasi_menit, estimasi_biaya, catatan)
         ''')
         .eq('id_pengguna', userId)

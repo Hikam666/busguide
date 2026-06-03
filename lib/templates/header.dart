@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/theme/app_colors.dart';
+import 'notification_sheet.dart';
 
 class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -80,8 +81,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                       Row(mainAxisSize: MainAxisSize.min, children: actions!)
                     else if (showNotification)
                       _NotificationButton(
-                        hasUnread: hasUnreadNotification,
-                        onTap: onNotificationTap ?? () {},
+                        onTap: onNotificationTap ?? () => showNotificationBottomSheet(context),
                       )
                     else
                       const SizedBox(width: 48),
@@ -100,11 +100,9 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
 }
 
 class _NotificationButton extends StatelessWidget {
-  final bool hasUnread;
   final VoidCallback onTap;
 
   const _NotificationButton({
-    required this.hasUnread,
     required this.onTap,
   });
 
@@ -119,26 +117,31 @@ class _NotificationButton extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Icon(Icons.notifications_outlined,
-                  size: 22, color: AppColors.textPrimary),
-              if (hasUnread)
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    width: 7,
-                    height: 7,
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.surface, width: 1.5),
+          child: ValueListenableBuilder<bool>(
+            valueListenable: hasUnreadNotifications,
+            builder: (context, hasUnread, child) {
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(Icons.notifications_outlined,
+                      size: 22, color: AppColors.textPrimary),
+                  if (hasUnread)
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.surface, width: 1.5),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-            ],
+                ],
+              );
+            }
           ),
         ),
       ),

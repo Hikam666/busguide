@@ -161,6 +161,23 @@ class HalteController extends ChangeNotifier {
     }
   }
 
+  // ─── SET TITIK PUSAT DARI PETA ────────────────────────────
+  void setTitikPusat(LatLng newPoint, {String label = 'Titik Terpilih'}) {
+    _titikPusat = newPoint;
+    _labelLokasi = label;
+    _pakaiGps = false;
+    notifyListeners();
+    hitungHalteTerdekat();
+  }
+
+  // ─── SET TITIK PUSAT TANPA HITUNG LOKASI TERDEKAT ─────────
+  void setTitikPusatTanpaHitung(LatLng newPoint, {String label = 'Titik Terpilih'}) {
+    _titikPusat = newPoint;
+    _labelLokasi = label;
+    _pakaiGps = false;
+    notifyListeners();
+  }
+
   // ─── FORMAT JARAK ─────────────────────────────────────────
   String formatJarak(double jarakMeter) {
     final meter = jarakMeter.round();
@@ -176,21 +193,64 @@ class HalteController extends ChangeNotifier {
 
   // ─── WARNA CHIP TIPE HALTE ────────────────────────────────
   Color warnaChip(String tipe) {
-    switch (tipe.toLowerCase()) {
+    switch (tipe.toUpperCase()) {
       case '1':
         return const Color(0xFF1A1A2E);
-      case '3f':
+      case '3F':
         return const Color(0xFF2563EB);
-      case '6m':
+      case '6M':
         return const Color(0xFFDC2626);
+      case 'AL':
+        return const Color(0xFF059669);
+      case 'ADL':
+        return const Color(0xFFD97706);
+      case 'LDG':
+        return const Color(0xFF7C3AED);
+      case 'GL':
+        return const Color(0xFFDB2777);
+      case 'LG':
+        return const Color(0xFF0369A1);
+      case 'ASD':
+        return const Color(0xFF4F46E5);
+      case 'HALTE':
+        return const Color(0xFF4B5563);
+      case 'TERMINAL':
+        return const Color(0xFF0F766E);
       default:
         return const Color(0xFF6B7280);
     }
   }
 
   // ─── PARSE TIPE HALTE MENJADI LIST ───────────────────────
-  List<String> parseTipe(String? tipe) {
-    if (tipe == null) return [];
-    return tipe.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+  List<String> parseTipe(int id, String? databaseTipe) {
+    switch (id) {
+      case 9: // Halte Universitas Brawijaya
+        return ['1', '3F', '6M'];
+      case 5: // Halte Alun-alun Malang
+        return ['1', '3F'];
+      case 6: // Halte Stasiun Malang
+        return ['AL', 'ADL', 'GL'];
+      case 2: // Terminal Landungsari
+        return ['AL', 'ADL', 'LDG', 'GL'];
+      case 1: // Terminal Arjosari
+        return ['AL', 'ADL', 'ASD'];
+      case 3: // Terminal Gadang
+        return ['LDG', 'GL', 'LG'];
+      case 11: // Halte Dinoyo
+        return ['ADL', 'LDG', 'GL'];
+      case 8: // Halte RS Saiful Anwar
+        return ['AL', 'ADL', 'ASD'];
+      case 19: // Halte Mall Olympic Garden
+        return ['GL', 'AL'];
+      case 20: // Halte Pasar Dinoyo
+        return ['ADL', 'LDG', 'GL'];
+      case 13: // Halte Blimbing
+        return ['AL', 'ASD'];
+      case 14: // Halte Pasar Blimbing
+        return ['AL', 'ASD'];
+      default:
+        if (databaseTipe == null || databaseTipe.isEmpty) return [];
+        return [databaseTipe.toUpperCase()];
+    }
   }
 }

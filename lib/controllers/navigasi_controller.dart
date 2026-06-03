@@ -9,6 +9,7 @@ import 'package:busguide/models/osrm_routes_service.dart';
 
 import 'package:busguide/models/halte.dart';
 import 'package:busguide/models/rute.dart';
+import 'package:busguide/models/perjalanan.dart';
 import 'package:busguide/utils/polyline_utils.dart';
 import 'package:busguide/utils/temp_cache.dart';
 
@@ -28,6 +29,7 @@ class NavigasiController extends ChangeNotifier {
   Halte? _halteTujuan;
   bool _alarmAktif = true;
   List<Rute> _ruteTersedia = [];
+  Map<int, List<Map<String, dynamic>>> _jadwalRuteMap = {};
 
   // Data Peta & GPS
   LatLng _lokasiSaatIni = const LatLng(-7.9797, 112.6304); // Default Malang
@@ -51,6 +53,7 @@ class NavigasiController extends ChangeNotifier {
   Halte? get halteTujuan => _halteTujuan;
   bool get alarmAktif => _alarmAktif;
   List<Rute> get ruteTersedia => _ruteTersedia;
+  Map<int, List<Map<String, dynamic>>> get jadwalRuteMap => _jadwalRuteMap;
   LatLng get lokasiSaatIni => _lokasiSaatIni;
   List<LatLng> get titikPolyline => _titikPolyline;
   List<RuteHalte> get halteRute => _halteRute;
@@ -152,7 +155,6 @@ class NavigasiController extends ChangeNotifier {
             RuteHalte(urutan: 2, halte: _halteTujuan!),
           ];
           await _loadPolyline(0);
-          return null;
         } else {
           // Menuju halte terdekat lalu naik bus
           final rute = await _ruteService.cariRute(
@@ -169,15 +171,26 @@ class NavigasiController extends ChangeNotifier {
               RuteHalte(urutan: 2, halte: _halteTujuan!),
             ];
             await _loadPolyline(0);
-            return null;
-        }
-          final realHalteRute = await _halteService.getHalteByRute(rute.first.id);
-          _halteRute = [
-            RuteHalte(urutan: 0, halte: _halteAsal!),
-            ...realHalteRute,
-          ];
-          await _loadPolyline(rute.first.id);
-          return null;
+          } else {
+            final realHalteRute = await _halteService.getHalteByRute(rute.first.id);
+            int indexAsal = realHalteRute.indexWhere((rh) => rh.halte.id == nearestHalte.id);
+            int indexTujuan = realHalteRute.indexWhere((rh) => rh.halte.id == _halteTujuan!.id);
+            List<RuteHalte> sliced = [];
+            if (indexAsal != -1 && indexTujuan != -1) {
+              if (indexAsal <= indexTujuan) {
+                sliced = realHalteRute.sublist(indexAsal, indexTujuan + 1);
+              } else {
+                sliced = realHalteRute.sublist(indexTujuan, indexAsal + 1).reversed.toList();
+              }
+            } else {
+              sliced = realHalteRute;
+            }
+            _halteRute = [
+              RuteHalte(urutan: 0, halte: _halteAsal!),
+              ...sliced,
+            ];
+            await _loadPolyline(rute.first.id);
+          }
         }
       } else {
         // Mode normal: Halte -> Halte
@@ -196,12 +209,39 @@ class NavigasiController extends ChangeNotifier {
               RuteHalte(urutan: 2, halte: _halteTujuan!),
             ];
             await _loadPolyline(0);
-            return null;
+        } else {
+          final realHalteRute = await _halteService.getHalteByRute(rute.first.id);
+          int indexAsal = realHalteRute.indexWhere((rh) => rh.halte.id == _halteAsal!.id);
+          int indexTujuan = realHalteRute.indexWhere((rh) => rh.halte.id == _halteTujuan!.id);
+          if (indexAsal != -1 && indexTujuan != -1) {
+            if (indexAsal <= indexTujuan) {
+              _halteRute = realHalteRute.sublist(indexAsal, indexTujuan + 1);
+            } else {
+              _halteRute = realHalteRute.sublist(indexTujuan, indexAsal + 1).reversed.toList();
+            }
+          } else {
+            _halteRute = realHalteRute;
+          }
+          await _loadPolyline(rute.first.id);
         }
-        _halteRute = await _halteService.getHalteByRute(rute.first.id);
-        await _loadPolyline(rute.first.id);
-        return null;
       }
+
+      // FETCH JADWAL FOR ALL RUTES IN _ruteTersedia
+      _jadwalRuteMap.clear();
+      for (final r in _ruteTersedia) {
+        if (r.id > 0) {
+          final listJadwal = await _ruteService.getJadwalRute(r.id);
+          if (listJadwal.isEmpty) {
+            _jadwalRuteMap[r.id] = _generateMockSchedules(r.id);
+          } else {
+            _jadwalRuteMap[r.id] = listJadwal;
+          }
+        } else {
+          _jadwalRuteMap[r.id] = _generateMockSchedules(r.id);
+        }
+      }
+
+      return null;
     } catch (e) {
       debugPrint('Error cari rute: $e');
       return 'Gagal mencari rute. Coba lagi.';
@@ -211,8 +251,26 @@ class NavigasiController extends ChangeNotifier {
     }
   }
 
+  List<Map<String, dynamic>> _generateMockSchedules(int idRute) {
+    final List<String> times = [
+      '07:00', '08:30', '10:00', '11:30', '13:00',
+      '14:30', '16:00', '17:30', '19:00', '20:30'
+    ];
+    final isEkonomi = idRute % 2 == 1;
+    final tarif = isEkonomi ? 10000 : 15000;
+    
+    return times.map((t) => {
+      'id': 99999 + times.indexOf(t),
+      'id_rute': idRute,
+      'id_bus': 1,
+      'hari': 'Setiap Hari',
+      'jam_berangkat': t,
+      'tarif': tarif,
+    }).toList();
+  }
+
   // ─── MULAI NAVIGASI ───────────────────────────────────────
-  Future<String?> mulaiNavigasi(Rute rute) async {
+  Future<String?> mulaiNavigasi(Rute rute, {bool writeToDb = true}) async {
     _isLoading = true;
     notifyListeners();
 
@@ -228,14 +286,28 @@ class NavigasiController extends ChangeNotifier {
           TempCache.customTujuanNavigasi = null;
         }
 
-        // Perjalanan lokal / Menuju Halte (simpan di DB sebagai rute bebas)
-        final perjalanan = await _perjalananService.mulaiPerjalanan(
-          idRute: null,
-          idHalteAsal: idAsalReal,
-          idHalteTujuan: _halteTujuan!.id,
-        );
+        // Perjalanan lokal / Menuju Halte
+        final Perjalanan perjalanan;
+        if (!writeToDb) {
+          perjalanan = Perjalanan(
+            id: -999,
+            status: 'aktif',
+            waktuMulai: DateTime.now(),
+            alarmAktif: _alarmAktif,
+            rute: rute,
+            halteAsal: _halteAsal!.id == 0 ? null : _halteAsal,
+            halteTujuan: _halteTujuan,
+          );
+          TempCache.inMemoryPerjalanan = perjalanan;
+        } else {
+          perjalanan = await _perjalananService.mulaiPerjalanan(
+            idRute: null,
+            idHalteAsal: idAsalReal,
+            idHalteTujuan: _halteTujuan!.id,
+          );
+        }
 
-        if (!_alarmAktif) {
+        if (!_alarmAktif && writeToDb) {
           await _perjalananService.toggleAlarm(
             idPerjalanan: perjalanan.id,
             aktif: false,
@@ -253,14 +325,27 @@ class NavigasiController extends ChangeNotifier {
       }
 
       // Perjalanan Bus Normal
-      
-      final perjalanan = await _perjalananService.mulaiPerjalanan(
-        idRute: rute.id,
-        idHalteAsal: idAsalReal,
-        idHalteTujuan: _halteTujuan!.id,
-      );
+      final Perjalanan perjalanan;
+      if (!writeToDb) {
+        perjalanan = Perjalanan(
+          id: -999,
+          status: 'aktif',
+          waktuMulai: DateTime.now(),
+          alarmAktif: _alarmAktif,
+          rute: rute,
+          halteAsal: _halteAsal!.id == 0 ? null : _halteAsal,
+          halteTujuan: _halteTujuan,
+        );
+        TempCache.inMemoryPerjalanan = perjalanan;
+      } else {
+        perjalanan = await _perjalananService.mulaiPerjalanan(
+          idRute: rute.id,
+          idHalteAsal: idAsalReal,
+          idHalteTujuan: _halteTujuan!.id,
+        );
+      }
 
-      if (!_alarmAktif) {
+      if (!_alarmAktif && writeToDb) {
         await _perjalananService.toggleAlarm(
           idPerjalanan: perjalanan.id,
           aktif: false,
@@ -268,13 +353,27 @@ class NavigasiController extends ChangeNotifier {
       }
 
       final realHalteRute = await _halteService.getHalteByRute(rute.id);
+      final startHalt = _halteAsal!.id == 0 ? _cariHalteTerdekat() : _halteAsal!;
+      int indexAsal = realHalteRute.indexWhere((rh) => rh.halte.id == startHalt.id);
+      int indexTujuan = realHalteRute.indexWhere((rh) => rh.halte.id == _halteTujuan!.id);
+      List<RuteHalte> sliced = [];
+      if (indexAsal != -1 && indexTujuan != -1) {
+        if (indexAsal <= indexTujuan) {
+          sliced = realHalteRute.sublist(indexAsal, indexTujuan + 1);
+        } else {
+          sliced = realHalteRute.sublist(indexTujuan, indexAsal + 1).reversed.toList();
+        }
+      } else {
+        sliced = realHalteRute;
+      }
+
       if (_halteAsal!.id == 0) {
         _halteRute = [
           RuteHalte(urutan: 0, halte: _halteAsal!),
-          ...realHalteRute,
+          ...sliced,
         ];
       } else {
-        _halteRute = realHalteRute;
+        _halteRute = sliced;
       }
       
       await _loadPolyline(rute.id);
@@ -295,25 +394,73 @@ class NavigasiController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // 1. Dapatkan bagian 1: dari GPS ke _halteAsal (jika jarak > 100m dan _halteAsal bukan Lokasi Saat Ini)
+      List<LatLng> firstPart = [];
+      bool needsFirstPart = false;
+
+      if (_halteAsal != null && _halteAsal!.id != 0) {
+        final distToAsal = Geolocator.distanceBetween(
+          _lokasiSaatIni.latitude,
+          _lokasiSaatIni.longitude,
+          _halteAsal!.latitude,
+          _halteAsal!.longitude,
+        );
+        if (distToAsal > 100) {
+          needsFirstPart = true;
+          final routeToAsal = await _osrmRoutesService.getRoute([
+            _lokasiSaatIni,
+            LatLng(_halteAsal!.latitude, _halteAsal!.longitude),
+          ]);
+          if (routeToAsal != null) {
+            firstPart = routeToAsal.polyline;
+          } else {
+            firstPart = [
+              _lokasiSaatIni,
+              LatLng(_halteAsal!.latitude, _halteAsal!.longitude)
+            ];
+          }
+        }
+      }
+
+      // 2. Dapatkan bagian 2: dari _halteAsal ke _halteTujuan (Jalur Bus)
+      List<LatLng> secondPart = [];
       if (idRute > 0) {
         // ── Prioritas 1: titik_rute dari database Supabase ──
         final titikDB = await _ruteService.getTitikRute(idRute);
         if (titikDB.length >= 2) {
-          final List<LatLng> rawPoints = titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
-          _titikPolyline = PolylineUtils.simplify(rawPoints, tolerance: 0.00015);
-          return;
+          final List<LatLng> rawPoints =
+              titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
+          if (_halteAsal != null && _halteTujuan != null && _halteAsal!.id != 0) {
+            secondPart = _sliceRouteCoordinates(rawPoints, _halteAsal!, _halteTujuan!);
+          } else {
+            secondPart = PolylineUtils.simplify(rawPoints, tolerance: 0.00015);
+          }
         }
       }
 
       // ── Prioritas 2: OSRM API ──
-      if (_halteRute.length >= 2) {
-        final waypoints = _halteRute
-            .map((h) => LatLng(h.halte.latitude, h.halte.longitude))
-            .toList();
+      if (secondPart.isEmpty && _halteAsal != null && _halteTujuan != null) {
+        final originPoint = _halteAsal!.id == 0 ? _lokasiSaatIni : LatLng(_halteAsal!.latitude, _halteAsal!.longitude);
+        final waypoints = [
+          originPoint,
+          LatLng(_halteTujuan!.latitude, _halteTujuan!.longitude),
+        ];
         final routeData = await _osrmRoutesService.getRoute(waypoints);
         if (routeData != null) {
-          _titikPolyline = routeData.polyline;
+          secondPart = routeData.polyline;
+        } else {
+          secondPart = [
+            originPoint,
+            LatLng(_halteTujuan!.latitude, _halteTujuan!.longitude)
+          ];
         }
+      }
+
+      // 3. Gabungkan bagian
+      if (needsFirstPart) {
+        _titikPolyline = [...firstPart, ...secondPart];
+      } else {
+        _titikPolyline = secondPart;
       }
     } catch (e) {
       debugPrint('loadPolyline error: $e');
@@ -323,11 +470,55 @@ class NavigasiController extends ChangeNotifier {
     }
   }
 
+  List<LatLng> _sliceRouteCoordinates(
+      List<LatLng> titikDB, Halte asal, Halte tujuan) {
+    int indexAsal = -1;
+    int indexTujuan = -1;
+    double minDistanceAsal = double.infinity;
+    double minDistanceTujuan = double.infinity;
+
+    for (int i = 0; i < titikDB.length; i++) {
+      final pt = titikDB[i];
+
+      final distAsal = Geolocator.distanceBetween(
+        asal.latitude,
+        asal.longitude,
+        pt.latitude,
+        pt.longitude,
+      );
+      if (distAsal < minDistanceAsal) {
+        minDistanceAsal = distAsal;
+        indexAsal = i;
+      }
+
+      final distTujuan = Geolocator.distanceBetween(
+        tujuan.latitude,
+        tujuan.longitude,
+        pt.latitude,
+        pt.longitude,
+      );
+      if (distTujuan < minDistanceTujuan) {
+        minDistanceTujuan = distTujuan;
+        indexTujuan = i;
+      }
+    }
+
+    if (indexAsal != -1 && indexTujuan != -1) {
+      if (indexAsal <= indexTujuan) {
+        return titikDB.sublist(indexAsal, indexTujuan + 1);
+      } else {
+        return titikDB.sublist(indexTujuan, indexAsal + 1).reversed.toList();
+      }
+    }
+    return PolylineUtils.simplify(titikDB, tolerance: 0.00015);
+  }
+
   // ─── RESET STATE ──────────────────────────────────────────
   void resetState() {
     _titikPolyline = [];
     _halteRute = [];
     _ruteTersedia = [];
+    _jadwalRuteMap = {};
     _adaPerjalananAktif = false;
     notifyListeners();
   }

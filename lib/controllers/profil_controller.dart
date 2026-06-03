@@ -19,6 +19,8 @@ class ProfilController extends ChangeNotifier {
   String get email => _profile?.email ?? '';
   String get initials => _profile?.initials ?? '?';
   bool get isAdmin => _profile?.isAdmin ?? false;
+  String get noHp => _profile?.noHp ?? '';
+  String get alamat => _profile?.alamat ?? '';
 
   // ─── LOAD PROFIL ──────────────────────────────────────────
   Future<void> loadProfile() async {
@@ -44,13 +46,21 @@ class ProfilController extends ChangeNotifier {
     notifyListeners();
   }
   // ─── UPDATE PROFIL ───────────────────────────────────────
-  Future<void> updateProfile(String newNama) async {
+  Future<void> updateProfile({
+    required String newNama,
+    String? newNoHp,
+    String? newAlamat,
+  }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      await _authService.updateProfile(nama: newNama);
+      await _authService.updateProfile(
+        nama: newNama,
+        noHp: newNoHp,
+        alamat: newAlamat,
+      );
       await loadProfile(); // Muat ulang profil dari server
     } catch (e) {
       _error = 'Gagal memperbarui profil: $e';

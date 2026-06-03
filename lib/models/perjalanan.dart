@@ -82,6 +82,29 @@ class Perjalanan {
     );
   }
 
+  /// Format durasi: 75 menit -> '1j 15m'
+  String? get durasiLabel {
+    // 1. Cek dari riwayat perjalanan di database
+    if (riwayat.isNotEmpty && riwayat.first.durasiMenit != null) {
+      final menit = riwayat.first.durasiMenit!;
+      return _formatMenit(menit);
+    }
+    // 2. Fallback: hitung selisih waktuSelesai dan waktuMulai
+    if (waktuSelesai != null) {
+      final menit = waktuSelesai!.difference(waktuMulai).inMinutes;
+      return _formatMenit(menit < 1 ? 1 : menit);
+    }
+    return null;
+  }
+
+  String _formatMenit(int menit) {
+    final jam = menit ~/ 60;
+    final sisa = menit % 60;
+    if (jam > 0 && sisa > 0) return '${jam}j ${sisa}m';
+    if (jam > 0) return '${jam}j';
+    return '${sisa}m';
+  }
+
   factory Perjalanan.fromMap(Map<String, dynamic> map) {
     // Parse riwayat_perjalanan (bisa List atau Map)
     List<RiwayatPerjalanan> riwayat = [];

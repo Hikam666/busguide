@@ -26,7 +26,7 @@ class AuthService {
       // Ambil role dari tabel profiles
       final profileData = await _supabase
           .from('profiles')
-          .select('id, nama, email, role, avatar_url')
+          .select('id, nama, email, role, avatar_url, no_hp, alamat, status_akun, last_login')
           .eq('id', user.id)
           .single();
 
@@ -85,7 +85,7 @@ class AuthService {
       for (int i = 0; i < 3; i++) {
         profileData = await _supabase
             .from('profiles')
-            .select('id, nama, email, role, avatar_url')
+            .select('id, nama, email, role, avatar_url, no_hp, alamat, status_akun, last_login')
             .eq('id', user.id)
             .maybeSingle();
         if (profileData != null) break;
@@ -164,7 +164,7 @@ class AuthService {
 
       final data = await _supabase
           .from('profiles')
-          .select('id, nama, email, role, avatar_url')
+          .select('id, nama, email, role, avatar_url, no_hp, alamat, status_akun, last_login')
           .eq('id', user.id)
           .single();
 
@@ -175,13 +175,21 @@ class AuthService {
   }
 
   // ─── UPDATE PROFILE ────────────────────────────────────────
-  Future<void> updateProfile({required String nama}) async {
+  Future<void> updateProfile({
+    required String nama,
+    String? noHp,
+    String? alamat,
+  }) async {
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('User belum login');
 
     await _supabase
         .from('profiles')
-        .update({'nama': nama})
+        .update({
+          'nama': nama,
+          'no_hp': noHp,
+          'alamat': alamat,
+        })
         .eq('id', user.id);
   }
 
@@ -256,7 +264,7 @@ class AuthService {
 
       final profileData = await _supabase
           .from('profiles')
-          .select('id, nama, email, role, avatar_url')
+          .select('id, nama, email, role, avatar_url, no_hp, alamat, status_akun, last_login')
           .eq('id', user.id)
           .single();
 

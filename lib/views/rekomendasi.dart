@@ -368,45 +368,22 @@ class _WisataCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Foto + Bookmark ───────────────────
+            // ── Foto ──────────────────────────────
             Expanded(
               flex: 5,
-              child: Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(14)),
-                    child: fotoUrl != null
-                        ? Image.network(
-                            fotoUrl,
-                            width: double.infinity,
-                            height: double.infinity,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                _fotoPlaceholder(),
-                          )
-                        : _fotoPlaceholder(),
-                  ),
-
-                  // ── PERBAIKAN: Icon bookmark sekarang terlihat ──
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.90),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.bookmark_border_rounded, // outline agar terlihat
-                        color: Color(0xFF6B7280),       // warna abu-abu
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ],
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(14)),
+                child: fotoUrl != null
+                    ? Image.network(
+                        fotoUrl,
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            _fotoPlaceholder(),
+                      )
+                    : _fotoPlaceholder(),
               ),
             ),
 
@@ -502,151 +479,188 @@ class _PoBusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final fotoUrl = po.logoUrl;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Foto + Badge Kelas ────────────────────
-          ClipRRect(
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(16)),
-            child: Stack(
-              children: [
-                fotoUrl != null
-                    ? Image.network(
-                        fotoUrl,
-                        height: 180,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _fotoBusPlaceholder(),
-                      )
-                    : _fotoBusPlaceholder(),
+    // Combine jenisLayanan and facilities into a single list of clean grey tags
+    final List<String> tags = [];
+    if (po.jenisLayanan != null && po.jenisLayanan!.isNotEmpty) {
+      tags.addAll(po.jenisLayanan!.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty));
+    }
+    if (po.fasilitas != null && po.fasilitas!.isNotEmpty) {
+      tags.addAll(po.fasilitas!.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty));
+    }
 
-                if (po.tagline != null && po.tagline!.isNotEmpty)
-                  Positioned(
-                    top: 12,
-                    left: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.75),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        po.tagline!,
-                        style: const TextStyle(
-                          fontFamily: 'DMSans',
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E7EB), width: 1.0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
-          ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Foto + Badge Kelas ────────────────────
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
+              child: Stack(
+                children: [
+                  fotoUrl != null
+                      ? Image.network(
+                          fotoUrl,
+                          height: 240, // Taller image for better presence
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _fotoBusPlaceholder(),
+                        )
+                      : _fotoBusPlaceholder(),
 
-          // ── Body Card ─────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Nama + Ikon status
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        po.nama,
-                        style: const TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1A1A2E),
+                  // Tagline Solid Pill Badge
+                  if (po.tagline != null && po.tagline!.isNotEmpty)
+                    Positioned(
+                      top: 16,
+                      left: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black, // Solid black pill background
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          po.tagline!,
+                          style: const TextStyle(
+                            fontFamily: 'DMSans',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    _buildStatusIcon(po),
+                ],
+              ),
+            ),
+
+            // ── Body Card ─────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Nama + Ikon status verified
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          po.nama,
+                          style: const TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1A1A2E),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.verified, // Official verified checkmark badge
+                        color: Theme.of(context).colorScheme.primary, // Verified primary color
+                        size: 20,
+                      ),
+                    ],
+                  ),
+
+                  // Plain Solid Grey tags for service type & facilities
+                  if (tags.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: tags.map((t) => Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF3F4F6), // light grey background
+                              borderRadius: BorderRadius.circular(6), // square-ish
+                            ),
+                            child: Text(
+                              t,
+                              style: const TextStyle(
+                                fontFamily: 'DMSans',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF374151), // dark text
+                              ),
+                            ),
+                          ))
+                      .toList(),
+                    ),
                   ],
-                ),
 
-                const SizedBox(height: 12),
-
-                // Deskripsi
-                if (po.deskripsi != null)
-                  Text(
-                    po.deskripsi!,
-                    style: const TextStyle(
-                      fontFamily: 'DMSans',
-                      fontSize: 13,
-                      color: Color(0xFF4B5563),
-                      height: 1.5,
-                    ),
-                    maxLines: 4,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-
-                const SizedBox(height: 16),
-
-                // Tombol Lihat Detail
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: onTap,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1A1A2E),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  // Deskripsi
+                  if (po.deskripsi != null) ...[
+                    const SizedBox(height: 14),
+                    Text(
+                      po.deskripsi!,
+                      style: const TextStyle(
+                        fontFamily: 'DMSans',
+                        fontSize: 13,
+                        color: Color(0xFF4B5563),
+                        height: 1.5,
                       ),
-                      elevation: 0,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    child: const Text(
-                      'Lihat Detail',
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                  ],
+
+                  const SizedBox(height: 16),
+
+                  // Tombol Lihat Detail
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: onTap,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black, // Solid black button
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'Lihat Detail',
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    );
-  }
-
-  Widget _buildStatusIcon(PoBus po) {
-    return const Icon(
-      Icons.business_rounded,
-      color: Color(0xFF9CA3AF),
-      size: 18,
     );
   }
 
   Widget _fotoBusPlaceholder() {
     return Container(
-      height: 180,
+      height: 240,
       width: double.infinity,
       color: const Color(0xFF1A1A2E),
       child: const Icon(Icons.directions_bus_rounded,

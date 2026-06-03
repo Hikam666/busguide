@@ -76,6 +76,20 @@ class RuteService {
         .map((e) => Rute.fromMap(e as Map<String, dynamic>))
         .toList();
   }
+
+  // Ambil jadwal keberangkatan untuk rute tertentu
+  Future<List<Map<String, dynamic>>> getJadwalRute(int idRute) async {
+    try {
+      final data = await _supabase
+          .from('jadwal')
+          .select('id, id_rute, id_bus, hari, jam_berangkat, tarif')
+          .eq('id_rute', idRute);
+      return List<Map<String, dynamic>>.from(data as List);
+    } catch (e) {
+      debugPrint('Error getJadwalRute: $e');
+      return [];
+    }
+  }
 }
 
 // Top-level function wajib untuk compute()

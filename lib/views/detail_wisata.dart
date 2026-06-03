@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../core/theme/app_colors.dart';
 import '../controllers/detail_wisata_controller.dart';
 import '../models/wisata.dart';
 import '../models/rute.dart';
+import '../models/rute_service.dart';
+import '../models/osrm_routes_service.dart';
 import '../templates/bottom_navbar.dart';
 
 class DetailWisataScreen extends StatefulWidget {
@@ -15,12 +19,77 @@ class DetailWisataScreen extends StatefulWidget {
 }
 
 class _DetailWisataScreenState extends State<DetailWisataScreen> {
+  Rute? _selectedRute;
+  List<LatLng> _selectedRutePoints = [];
+  bool _isLoadingMap = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DetailWisataController>().loadData(widget.idWisata);
     });
+  }
+
+  Future<void> _selectRute(Rute rute) async {
+    if (_selectedRute?.id == rute.id) {
+      setState(() {
+        _selectedRute = null;
+        _selectedRutePoints = [];
+      });
+      return;
+    }
+
+    setState(() {
+      _selectedRute = rute;
+      _isLoadingMap = true;
+    });
+
+    try {
+      final service = RuteService();
+      final titik = await service.getTitikRute(rute.id);
+      
+      List<LatLng> points = titik.map((t) => LatLng(t.latitude, t.longitude)).toList();
+      
+      // If no database points (or just 2 endpoints), use OSRM to find the road-following path
+      if (points.length < 3) {
+        List<LatLng> waypoints = [];
+        if (points.length == 2) {
+          waypoints = points;
+        } else if (rute.terminalAwal != null && rute.terminalAkhir != null) {
+          waypoints = [
+            LatLng(rute.terminalAwal!.latitude, rute.terminalAwal!.longitude),
+            LatLng(rute.terminalAkhir!.latitude, rute.terminalAkhir!.longitude),
+          ];
+        } else {
+          waypoints = [
+            const LatLng(-7.9797, 112.6304), // Alun-alun Malang
+            const LatLng(-7.9325, 112.6442), // Terminal Arjosari
+          ];
+        }
+
+        final osrm = OsrmRoutesService();
+        final routeData = await osrm.getRoute(waypoints);
+        if (routeData != null && routeData.polyline.isNotEmpty) {
+          points = routeData.polyline;
+        } else if (points.isEmpty) {
+          points = waypoints;
+        }
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _selectedRutePoints = points;
+        _isLoadingMap = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading points: $e');
+      if (!mounted) return;
+      setState(() {
+        _isLoadingMap = false;
+      });
+    }
   }
 
   @override
@@ -95,31 +164,71 @@ class _DetailWisataScreenState extends State<DetailWisataScreen> {
                   const SizedBox(height: 24),
                 ],
 
+                // Alamat lengkap
+                if (w.alamat != null && w.alamat!.isNotEmpty) ...[
+                  const Text(
+                    'Alamat',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1A1A2E),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.location_on_rounded,
+                          color: Color(0xFF6B7280), size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          w.alamat!,
+                          style: const TextStyle(
+                            fontFamily: 'DMSans',
+                            fontSize: 14,
+                            color: Color(0xFF4B5563),
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                ],
+
                 // Tarif masuk — full width card
                 if (w.tarif != null) ...[
-                  _TarifCard(tarif: w.tarifFormatted),
+                  _TarifCard(
+                    tarif: w.tarifFormatted,
+                    isGratis: w.tarif == 0,
+                  ),
                   const SizedBox(height: 12),
                 ],
 
-                // Jam buka & Operasional — 2 kolom
+                // Jam buka & Jam tutup — 2 kolom
                 if (w.jamBuka != null || w.jamTutup != null) ...[
                   Row(
                     children: [
-                      Expanded(
-                        child: _InfoBox(
-                          icon: Icons.access_time_rounded,
-                          label: 'Jam buka',
-                          value: w.jamBuka ?? '24 Jam',
+                      if (w.jamBuka != null)
+                        Expanded(
+                          child: _InfoBox(
+                            icon: Icons.access_time_rounded,
+                            label: 'Jam buka',
+                            value: w.jamBuka!,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _InfoBox(
-                          icon: Icons.calendar_today_rounded,
-                          label: 'Operasional',
-                          value: w.jamTutup ?? 'Setiap Hari',
+                      if (w.jamBuka != null && w.jamTutup != null)
+                        const SizedBox(width: 12),
+                      if (w.jamTutup != null)
+                        Expanded(
+                          child: _InfoBox(
+                            icon: Icons.access_time_filled_rounded,
+                            label: 'Jam tutup',
+                            value: w.jamTutup!,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 28),
@@ -137,7 +246,24 @@ class _DetailWisataScreenState extends State<DetailWisataScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  ...ruteList.map((rute) => _RuteListItem(rute: rute)),
+                  ...ruteList.map((rute) {
+                    final isSelected = _selectedRute?.id == rute.id;
+                    return GestureDetector(
+                      onTap: () => _selectRute(rute),
+                      child: _RuteListItem(
+                        rute: rute,
+                        isSelected: isSelected,
+                      ),
+                    );
+                  }),
+                  if (_selectedRute != null) ...[
+                    const SizedBox(height: 16),
+                    _InteractiveRuteMap(
+                      rute: _selectedRute!,
+                      points: _selectedRutePoints,
+                      isLoading: _isLoadingMap,
+                    ),
+                  ],
                 ] else ...[
                   const SizedBox(height: 16),
                   const _StateInfo(
@@ -156,7 +282,7 @@ class _DetailWisataScreenState extends State<DetailWisataScreen> {
 }
 
 // ──────────────────────────────────────────────
-// Sliver Header dengan overlay nama + lokasi + rating
+// Sliver Header dengan overlay nama + lokasi + rating (bookmark completely removed)
 // ──────────────────────────────────────────────
 class _SliverFotoHeader extends StatelessWidget {
   final String? fotoUrl;
@@ -325,20 +451,29 @@ class _SliverFotoHeader extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────
-// Card tarif masuk — full width, ikon kotak gelap
+// Card tarif masuk — full width, ikon kotak gelap (gratis styled in green)
 // ──────────────────────────────────────────────
 class _TarifCard extends StatelessWidget {
   final String tarif;
-  const _TarifCard({required this.tarif});
+  final bool isGratis;
+
+  const _TarifCard({
+    required this.tarif,
+    this.isGratis = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final accentColor = isGratis ? const Color(0xFF2E7D32) : const Color(0xFF1A1A2E);
+    final bgColor = isGratis ? const Color(0xFFE8F5E9) : Colors.white;
+    final borderColor = isGratis ? const Color(0xFFC8E6C9) : const Color(0xFFE5E7EB);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: bgColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         children: [
@@ -346,7 +481,7 @@ class _TarifCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFF1A1A2E),
+              color: accentColor,
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(Icons.local_activity_rounded,
@@ -366,12 +501,12 @@ class _TarifCard extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                'Rp $tarif',
-                style: const TextStyle(
+                isGratis ? 'Gratis' : 'Rp $tarif',
+                style: TextStyle(
                   fontFamily: 'DMSans',
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A2E),
+                  color: accentColor,
                 ),
               ),
             ],
@@ -439,7 +574,11 @@ class _InfoBox extends StatelessWidget {
 // ──────────────────────────────────────────────
 class _RuteListItem extends StatelessWidget {
   final Rute rute;
-  const _RuteListItem({required this.rute});
+  final bool isSelected;
+  const _RuteListItem({
+    required this.rute,
+    this.isSelected = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -447,9 +586,12 @@ class _RuteListItem extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isSelected ? const Color(0xFFE8F0FE) : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(
+          color: isSelected ? AppColors.primary : const Color(0xFFE5E7EB),
+          width: isSelected ? 2 : 1,
+        ),
       ),
       child: Row(
         children: [
@@ -501,8 +643,11 @@ class _RuteListItem extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded,
-              color: Color(0xFF9CA3AF), size: 18),
+          Icon(
+            isSelected ? Icons.expand_less_rounded : Icons.chevron_right_rounded,
+            color: const Color(0xFF9CA3AF),
+            size: 18,
+          ),
         ],
       ),
     );
@@ -521,137 +666,177 @@ class _RuteListItem extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────
-// Rute detail card — dengan map preview & tombol navigasi
+// Map interaktif rute bus & lintasan asli / fallback
 // ──────────────────────────────────────────────
-class _RuteDetailCard extends StatelessWidget {
+class _InteractiveRuteMap extends StatelessWidget {
   final Rute rute;
-  const _RuteDetailCard({required this.rute});
+  final List<LatLng> points;
+  final bool isLoading;
+
+  const _InteractiveRuteMap({
+    required this.rute,
+    required this.points,
+    required this.isLoading,
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Container(
+        height: 220,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
+
+    final center = points.isNotEmpty 
+        ? points[points.length ~/ 2] 
+        : const LatLng(-7.9797, 112.6304);
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Map preview (menampilkan gambar peta OpenStreetMap jika tersedia)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        rute.kode,
+                        style: const TextStyle(
+                          fontFamily: 'JetBrainsMono',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        rute.nama,
+                        style: const TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Peta lintasan rute bus & titik koordinat',
+                  style: TextStyle(
+                    fontFamily: 'DMSans',
+                    fontSize: 11,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+              ],
+            ),
+          ),
           ClipRRect(
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(18)),
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(18)),
             child: SizedBox(
-              height: 160,
+              height: 220,
               width: double.infinity,
-              child: _MapPreview(
-                rute: rute,
-                onTap: () => Navigator.pushNamed(context, '/navigasi_aktif'),
+              child: FlutterMap(
+                options: MapOptions(
+                  initialCenter: center,
+                  initialZoom: 12.5,
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.busguide.app',
+                  ),
+                  if (points.isNotEmpty) ...[
+                    PolylineLayer(
+                      polylines: [
+                        Polyline(
+                          points: points,
+                          strokeWidth: 4.5,
+                          color: AppColors.primary,
+                        ),
+                      ],
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: points.first,
+                          width: 30,
+                          height: 30,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF2E7D32),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.play_arrow_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                        Marker(
+                          point: points.last,
+                          width: 30,
+                          height: 30,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFC62828),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.flag_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
-
         ],
       ),
     );
   }
-}
-
-// ──────────────────────────────────────────────
-// Map preview — tile OpenStreetMap atau placeholder
-// ──────────────────────────────────────────────
-class _MapPreview extends StatelessWidget {
-  final Rute rute;
-  final VoidCallback? onTap;
-  const _MapPreview({required this.rute, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(color: const Color(0xFFD6E8C8)),
-          CustomPaint(painter: _MapGridPainter()),
-
-          if (onTap != null)
-            Positioned(
-              right: 12,
-              top: 12,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Text(
-                  'Ketuk untuk navigasi',
-                  style: TextStyle(
-                    fontFamily: 'DMSans',
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1A2E),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MapGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final roadPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round;
-
-    final routePaint = Paint()
-      ..color = const Color(0xFFE57373)
-      ..strokeWidth = 3.5
-      ..strokeCap = StrokeCap.round;
-
-    // Jalan-jalan latar
-    canvas.drawLine(Offset(0, size.height * 0.3),
-        Offset(size.width, size.height * 0.3), roadPaint);
-    canvas.drawLine(Offset(0, size.height * 0.6),
-        Offset(size.width, size.height * 0.6), roadPaint);
-    canvas.drawLine(Offset(size.width * 0.25, 0),
-        Offset(size.width * 0.25, size.height), roadPaint);
-    canvas.drawLine(Offset(size.width * 0.65, 0),
-        Offset(size.width * 0.65, size.height), roadPaint);
-
-    // Rute merah
-    final path = Path()
-      ..moveTo(size.width * 0.15, size.height * 0.2)
-      ..lineTo(size.width * 0.65, size.height * 0.2)
-      ..lineTo(size.width * 0.65, size.height * 0.6)
-      ..lineTo(size.width * 0.85, size.height * 0.6);
-
-    canvas.drawPath(path, routePaint..style = PaintingStyle.stroke);
-
-    // Titik awal & akhir
-    canvas.drawCircle(
-      Offset(size.width * 0.15, size.height * 0.2),
-      5,
-      Paint()..color = const Color(0xFF4CAF50),
-    );
-    canvas.drawCircle(
-      Offset(size.width * 0.85, size.height * 0.6),
-      5,
-      Paint()..color = const Color(0xFFE57373),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ──────────────────────────────────────────────

@@ -6,33 +6,30 @@ import 'rute.dart';
 class HalteService {
   final _supabase = Supabase.instance.client;
 
-  // Ambil semua halte
   Future<List<Halte>> getSemuaHalte() async {
     final data = await _supabase
         .from('halte')
-        .select('id, nama, tipe, alamat, latitude, longitude')
+        .select('id, nama, tipe, alamat, latitude, longitude, fasilitas, foto')
         .order('nama');
     return (data as List)
         .map((e) => Halte.fromMap(e as Map<String, dynamic>))
         .toList();
   }
 
-  // Ambil detail satu halte (Menggunakan HTTP murni sesuai tugas)
   Future<Halte> getDetailHalte(int idHalte) async {
     final data = await ApiClient.get(
       table: 'halte',
-      query: 'select=id,nama,tipe,alamat,latitude,longitude&id=eq.$idHalte',
+      query: 'select=id,nama,tipe,alamat,latitude,longitude,fasilitas,foto&id=eq.$idHalte',
     );
     if (data.isEmpty) throw Exception('Halte tidak ditemukan');
     return Halte.fromMap(data.first as Map<String, dynamic>);
   }
 
-  // Ambil daftar halte dalam satu rute (urut berdasarkan urutan)
   Future<List<RuteHalte>> getHalteByRute(int idRute) async {
     final data = await _supabase
         .from('rute_halte')
         .select(
-            'urutan, jarak_meter, halte(id, nama, tipe, alamat, latitude, longitude)')
+            'urutan, jarak_meter, halte(id, nama, tipe, alamat, latitude, longitude, fasilitas, foto)')
         .eq('id_rute', idRute)
         .order('urutan');
     return (data as List)

@@ -75,8 +75,11 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
                     latitude: selectedLatLng.latitude, 
                     longitude: selectedLatLng.longitude,
                   );
-                  if (isAsal) ctrl.pilihHalteAsal(h);
-                  else ctrl.pilihHalteTujuan(h);
+                  if (isAsal) {
+                    ctrl.pilihHalteAsal(h);
+                  } else {
+                    ctrl.pilihHalteTujuan(h);
+                  }
                 }
               },
             ),
@@ -109,8 +112,6 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
     );
   }
 
-
-
   Future<void> _handleCariRute(NavigasiController ctrl) async {
     final error = await ctrl.cariRute();
     if (error != null && mounted) {
@@ -123,7 +124,81 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
   }
 
   Future<void> _handleMulaiNavigasi(NavigasiController ctrl, Rute rute) async {
-    final error = await ctrl.mulaiNavigasi(rute);
+    if (ctrl.isLoading) return;
+
+    // Check if the route has departures today
+    final schedules = ctrl.jadwalRuteMap[rute.id] ?? [];
+    bool hasDeparturesToday = false;
+    String earliestTime = '08:00';
+
+    if (schedules.isNotEmpty) {
+      final now = DateTime.now();
+      final weekdayNamesEn = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      final weekdayNamesId = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+      final todayEn = weekdayNamesEn[now.weekday].toLowerCase();
+      final todayId = weekdayNamesId[now.weekday].toLowerCase();
+
+      final schedulesToday = schedules.where((s) {
+        final h = s['hari'];
+        List<String> listHari = [];
+        if (h is List) {
+          listHari = h.map((e) => e.toString().toLowerCase()).toList();
+        } else if (h is String) {
+          listHari = [h.toLowerCase()];
+        }
+        if (listHari.isEmpty) return true;
+        return listHari.any((day) =>
+          day == 'setiap hari' ||
+          day == 'daily' ||
+          day == todayEn ||
+          day == todayId
+        );
+      }).toList();
+
+      DateTime? nextDeparture;
+      if (schedulesToday.isNotEmpty) {
+        int minDiff = 999999;
+        for (final s in schedulesToday) {
+          final jam = s['jam_berangkat']?.toString();
+          if (jam == null || !jam.contains(':')) continue;
+          final parts = jam.split(':');
+          final hour = int.tryParse(parts[0]);
+          final minute = int.tryParse(parts[1]);
+          if (hour == null || minute == null) continue;
+
+          final depTimeToday = DateTime(now.year, now.month, now.day, hour, minute);
+          final diff = depTimeToday.difference(now).inMinutes;
+
+          if (diff > 0 && diff < minDiff) {
+            minDiff = diff;
+            nextDeparture = depTimeToday;
+          }
+        }
+      }
+
+      if (nextDeparture != null) {
+        hasDeparturesToday = true;
+      } else {
+        int minHour = 24;
+        int minMinute = 60;
+        for (final s in schedules) {
+          final jam = s['jam_berangkat']?.toString();
+          if (jam == null || !jam.contains(':')) continue;
+          final parts = jam.split(':');
+          final hour = int.tryParse(parts[0]);
+          final minute = int.tryParse(parts[1]);
+          if (hour == null || minute == null) continue;
+
+          if (hour < minHour || (hour == minHour && minute < minMinute)) {
+            minHour = hour;
+            minMinute = minute;
+            earliestTime = jam;
+          }
+        }
+      }
+    }
+
+    final error = await ctrl.mulaiNavigasi(rute, writeToDb: hasDeparturesToday);
     if (!mounted) return;
     
     if (error != null) {
@@ -131,10 +206,41 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
         SnackBar(content: Text(error), backgroundColor: Colors.red),
       );
     } else {
-      // Refresh HomeController so Home shows the active perjalanan immediately
-      try {
-        await context.read<HomeController>().loadData();
-      } catch (_) {}
+      if (!hasDeparturesToday) {
+        String formattedTime = earliestTime;
+        if (earliestTime.contains(':')) {
+          final parts = earliestTime.split(':');
+          if (parts.length >= 2) {
+            formattedTime = '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
+          }
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Bus tidak aktif saat ini. Rute ini beroperasi kembali besok jam $formattedTime WIB.',
+                    style: const TextStyle(fontFamily: 'DMSans', fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFFD97706),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+
+      // Refresh HomeController so Home shows the active perjalanan immediately if written to DB
+      if (hasDeparturesToday) {
+        try {
+          await context.read<HomeController>().loadData();
+        } catch (_) {}
+      }
+      if (!mounted) return;
       Navigator.pushNamed(context, '/navigasi_aktif').then((_) {
         ctrl.resetState();
       });
@@ -180,100 +286,144 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4)),
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
                     ],
                   ),
                   child: Column(
                     children: [
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Ikon Kiri (Timeline)
+                          // Left: Dotted Line Icons Timeline
                           Column(
                             children: [
-                              const Icon(Icons.circle,
-                                  color: AppColors.primary, size: 14),
-                              Container(
-                                  width: 2,
-                                  height: 32,
-                                  color: const Color(0xFFE5E7EB)),
-                              const Icon(Icons.location_on,
-                                  color: Colors.red, size: 18),
+                              const Icon(Icons.radio_button_checked_rounded,
+                                  color: Color(0xFF4B5563), size: 20),
+                              CustomPaint(
+                                size: const Size(2, 36),
+                                painter: DottedLinePainter(),
+                              ),
+                              const Icon(Icons.location_on_rounded,
+                                  color: AppColors.primary, size: 20),
                             ],
                           ),
                           const SizedBox(width: 12),
-                          // Input Asal & Tujuan
+                          // Middle: Form Fields
                           Expanded(
                             child: Column(
                               children: [
                                 GestureDetector(
-                                  onTap: () =>
-                                      _bukaPilihHalte(ctrl, isAsal: true),
+                                  onTap: () => _bukaPilihHalte(ctrl, isAsal: true),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 12),
+                                    height: 46,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: const Color(0xFFD5E0F2)),
+                                    ),
                                     alignment: Alignment.centerLeft,
                                     child: Text(
-                                      ctrl.halteAsal?.nama ??
-                                          'Pilih halte asal...',
+                                      ctrl.halteAsal?.nama ?? 'Pilih halte asal...',
                                       style: TextStyle(
-                                          fontSize: 14,
-                                          color: ctrl.halteAsal != null
-                                              ? AppColors.textPrimary
-                                              : Colors.grey),
+                                        fontFamily: 'DMSans',
+                                        fontSize: 14,
+                                        color: ctrl.halteAsal != null
+                                            ? AppColors.textPrimary
+                                            : Colors.grey,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ),
-                                const Divider(height: 1),
+                                const SizedBox(height: 12),
                                 GestureDetector(
-                                  onTap: () =>
-                                      _bukaPilihHalte(ctrl, isAsal: false),
+                                  onTap: () => _bukaPilihHalte(ctrl, isAsal: false),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 12),
+                                    height: 46,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF9FAFC),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: const Color(0xFFD5E0F2)),
+                                    ),
                                     alignment: Alignment.centerLeft,
                                     child: Text(
-                                      ctrl.halteTujuan?.nama ??
-                                          'Pilih halte tujuan...',
+                                      ctrl.halteTujuan?.nama ?? 'Lokasi tujuan',
                                       style: TextStyle(
-                                          fontSize: 14,
-                                          color: ctrl.halteTujuan != null
-                                              ? AppColors.textPrimary
-                                              : Colors.grey),
+                                        fontFamily: 'DMSans',
+                                        fontSize: 14,
+                                        color: ctrl.halteTujuan != null
+                                            ? AppColors.textPrimary
+                                            : Colors.grey,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          // Tombol Swap
-                          IconButton(
-                            icon: const Icon(Icons.swap_vert,
-                                color: Colors.grey),
-                            onPressed: () {
-                              ctrl.tukarHalte();
-                            },
+                          const SizedBox(width: 12),
+                          // Right: Swap Button
+                          GestureDetector(
+                            onTap: () => ctrl.tukarHalte(),
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEAF1FF),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.swap_vert_rounded,
+                                color: AppColors.primary,
+                                size: 20,
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       // Alarm Toggle
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Aktifkan alarm halte tujuan',
-                              style: TextStyle(
+                          const Row(
+                            children: [
+                              Icon(Icons.notifications_none_rounded,
+                                  color: Color(0xFF4B5563), size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Aktifkan alarm halte tujuan',
+                                style: TextStyle(
+                                  fontFamily: 'DMSans',
                                   fontSize: 13,
-                                  color: AppColors.textSecondary)),
+                                  color: Color(0xFF4B5563),
+                                ),
+                              ),
+                            ],
+                          ),
                           Switch(
                             value: ctrl.alarmAktif,
-                            activeColor: AppColors.primary,
+                            activeThumbColor: AppColors.primary,
                             onChanged: (val) => ctrl.setAlarm(val),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       // Tombol Cari Rute
                       SizedBox(
                         width: double.infinity,
@@ -283,9 +433,12 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
                               : () => _handleCariRute(ctrl),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            elevation: 0,
                           ),
                           child: ctrl.isLoading
                               ? const SizedBox(
@@ -293,11 +446,14 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
                                   width: 20,
                                   child: CircularProgressIndicator(
                                       color: Colors.white, strokeWidth: 2))
-                              : const Text('Cari Rute',
+                              : const Text(
+                                  'Cari Rute',
                                   style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold)),
+                                    fontFamily: 'PlusJakartaSans',
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                         ),
                       ),
                     ],
@@ -306,7 +462,7 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
 
                 // Peta Mini
                 Container(
-                  height: 220,
+                  height: 240,
                   margin: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
@@ -355,6 +511,30 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
                         ),
                         if (ctrl.isMapLoading)
                           const Center(child: CircularProgressIndicator()),
+                        
+                        // Floating map controls in bottom right
+                        Positioned(
+                          bottom: 12,
+                          right: 12,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildMapControl(
+                                icon: Icons.gps_fixed_rounded,
+                                onTap: () {
+                                  _mapController.move(ctrl.lokasiSaatIni, 15);
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                              _buildMapControl(
+                                icon: Icons.layers_rounded,
+                                onTap: () {
+                                  // Layers toggled visually
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -366,9 +546,15 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
                     padding: EdgeInsets.fromLTRB(16, 24, 16, 12),
                     child: Align(
                       alignment: Alignment.centerLeft,
-                      child: Text('Rute Tersedia',
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        'Rute Tersedia',
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
                     ),
                   ),
                   ListView.builder(
@@ -382,6 +568,7 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
                         rute: rute,
                         halteAsal: ctrl.halteAsal!.nama,
                         halteTujuan: ctrl.halteTujuan!.nama,
+                        schedules: ctrl.jadwalRuteMap[rute.id] ?? [],
                         onMulai: () => _handleMulaiNavigasi(ctrl, rute),
                       );
                     },
@@ -395,27 +582,216 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
       ],
     );
   }
+
+  Widget _buildMapControl({required IconData icon, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(icon, color: const Color(0xFF4B5563), size: 18),
+      ),
+    );
+  }
 }
 
 // ==========================================
 // 2. WIDGET-WIDGET PENDUKUNG
 // ==========================================
 
+class DottedLinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF9CA3AF)
+      ..strokeWidth = size.width
+      ..style = PaintingStyle.stroke;
+    const dashHeight = 4.0;
+    const dashSpace = 4.0;
+    double startY = 0;
+    while (startY < size.height) {
+      canvas.drawLine(Offset(0, startY), Offset(0, startY + dashHeight), paint);
+      startY += dashHeight + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class _RuteTersediaCard extends StatelessWidget {
   final Rute rute;
   final String halteAsal;
   final String halteTujuan;
+  final List<Map<String, dynamic>> schedules;
   final VoidCallback onMulai;
 
   const _RuteTersediaCard({
     required this.rute,
     required this.halteAsal,
     required this.halteTujuan,
+    required this.schedules,
     required this.onMulai,
   });
 
+  Map<String, dynamic> _getScheduleInfo() {
+    if (schedules.isEmpty) {
+      return {
+        'hasDeparturesToday': false,
+        'nextDeparture': null,
+        'nextDepartureFormatted': '-',
+        'notice': 'Tidak ada jadwal operasi tersedia',
+        'tarif': 10000,
+        'hari': 'Tidak Aktif',
+      };
+    }
+
+    final now = DateTime.now();
+    final weekdayNamesEn = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    final weekdayNamesId = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+    final todayEn = weekdayNamesEn[now.weekday].toLowerCase();
+    final todayId = weekdayNamesId[now.weekday].toLowerCase();
+
+    final firstSched = schedules.first;
+    final int tarif = firstSched['tarif'] as int? ?? 10000;
+    
+    final Set<String> uniqueDays = schedules.expand((s) {
+      final h = s['hari'];
+      if (h is List) return h.map((e) => e.toString());
+      if (h is String) return [h];
+      return ['Setiap Hari'];
+    }).toSet();
+    
+    final String hariOperasional;
+    final lowerDays = uniqueDays.map((d) => d.toLowerCase()).toSet();
+    if (lowerDays.contains('setiap hari') || lowerDays.contains('daily') || lowerDays.length >= 7) {
+      hariOperasional = 'Setiap Hari';
+    } else {
+      hariOperasional = uniqueDays.map((day) {
+        if (day.isEmpty) return day;
+        return day[0].toUpperCase() + day.substring(1);
+      }).join(', ');
+    }
+
+    final schedulesToday = schedules.where((s) {
+      final h = s['hari'];
+      List<String> listHari = [];
+      if (h is List) {
+        listHari = h.map((e) => e.toString().toLowerCase()).toList();
+      } else if (h is String) {
+        listHari = [h.toLowerCase()];
+      }
+      
+      if (listHari.isEmpty) return true;
+      return listHari.any((day) =>
+        day == 'setiap hari' ||
+        day == 'daily' ||
+        day == todayEn ||
+        day == todayId
+      );
+    }).toList();
+
+    DateTime? nextDeparture;
+    
+    if (schedulesToday.isNotEmpty) {
+      int minDiff = 999999;
+      for (final s in schedulesToday) {
+        final jam = s['jam_berangkat']?.toString();
+        if (jam == null || !jam.contains(':')) continue;
+        final parts = jam.split(':');
+        final hour = int.tryParse(parts[0]);
+        final minute = int.tryParse(parts[1]);
+        if (hour == null || minute == null) continue;
+
+        final depTimeToday = DateTime(now.year, now.month, now.day, hour, minute);
+        final diff = depTimeToday.difference(now).inMinutes;
+
+        if (diff > 0 && diff < minDiff) {
+          minDiff = diff;
+          nextDeparture = depTimeToday;
+        }
+      }
+    }
+
+    if (nextDeparture != null) {
+      final h = nextDeparture.hour.toString().padLeft(2, '0');
+      final m = nextDeparture.minute.toString().padLeft(2, '0');
+      return {
+        'hasDeparturesToday': true,
+        'nextDeparture': nextDeparture,
+        'nextDepartureFormatted': '$h:$m WIB',
+        'notice': null,
+        'tarif': tarif,
+        'hari': hariOperasional,
+      };
+    } else {
+      String earliestTime = '08:00';
+      int minHour = 24;
+      int minMinute = 60;
+      
+      for (final s in schedules) {
+        final jam = s['jam_berangkat']?.toString();
+        if (jam == null || !jam.contains(':')) continue;
+        final parts = jam.split(':');
+        final hour = int.tryParse(parts[0]);
+        final minute = int.tryParse(parts[1]);
+        if (hour == null || minute == null) continue;
+
+        if (hour < minHour || (hour == minHour && minute < minMinute)) {
+          minHour = hour;
+          minMinute = minute;
+          earliestTime = jam;
+        }
+      }
+
+      String formattedTime = earliestTime;
+      if (earliestTime.contains(':')) {
+        final parts = earliestTime.split(':');
+        if (parts.length >= 2) {
+          formattedTime = '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
+        }
+      }
+
+      final notice = 'Bus dengan rute terkait akan beroperasi besok pada jam $formattedTime WIB';
+      return {
+        'hasDeparturesToday': false,
+        'nextDeparture': null,
+        'nextDepartureFormatted': '$formattedTime WIB',
+        'notice': notice,
+        'tarif': tarif,
+        'hari': hariOperasional,
+      };
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isEkonomi = rute.nama.toLowerCase().contains('ekonomi') || rute.id % 2 == 1;
+    final serviceLabel = isEkonomi ? 'Ekonomi' : 'Reguler';
+    final badgeColor = isEkonomi ? const Color(0xFF374151) : AppColors.primary;
+    final durationText = isEkonomi ? '~35 mnt' : '~25 mnt';
+    final duration = isEkonomi ? 35 : 25;
+
+    final info = _getScheduleInfo();
+    final hasDepartures = info['hasDeparturesToday'] as bool;
+
+    String formatTime(DateTime dt) {
+      final h = dt.hour.toString().padLeft(2, '0');
+      final m = dt.minute.toString().padLeft(2, '0');
+      return '$h:$m WIB';
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -427,46 +803,149 @@ class _RuteTersediaCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Rute
+          // Header badges row
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                    color: AppColors.surfaceVariant,
-                    borderRadius: BorderRadius.circular(8)),
-                child: Text(rute.kode,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary)),
+                  color: badgeColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'Trans Jatim',
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 11,
+                  ),
+                ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF1FF),
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Text(
-                  rute.nama,
+                  serviceLabel,
                   style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: AppColors.textPrimary),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                    fontFamily: 'PlusJakartaSans',
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1D4ED8),
+                    fontSize: 11,
+                  ),
                 ),
               ),
               const Spacer(),
+              Text(
+                durationText,
+                style: const TextStyle(
+                  fontFamily: 'DMSans',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF4B5563),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Operational Days & Tariff Row
+          Row(
+            children: [
+              const Icon(Icons.payments_outlined, size: 14, color: AppColors.primary),
+              const SizedBox(width: 4),
+              Text(
+                'Rp ${info['tarif'].toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]}.")}',
+                style: const TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Icon(Icons.calendar_month_outlined, size: 14, color: Colors.grey[600]),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  info['hari'],
+                  style: TextStyle(
+                    fontFamily: 'DMSans',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[600],
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
-          // Timeline
+
+          // Warning notice banner if no departures left today
+          if (!hasDepartures)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFEE2E2)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      info['notice'] ?? 'Jadwal keberangkatan hari ini sudah habis.',
+                      style: const TextStyle(
+                        fontFamily: 'DMSans',
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF991B1B),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          
+          // Custom Timeline layout
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Column(
                 children: [
-                  const Icon(Icons.circle,
-                      color: AppColors.primary, size: 14),
+                  const SizedBox(height: 4),
                   Container(
-                      width: 2, height: 24, color: const Color(0xFFE5E7EB)),
-                  const Icon(Icons.circle, color: Colors.red, size: 14),
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.primary, width: 2),
+                      color: Colors.white,
+                    ),
+                  ),
+                  Container(
+                    width: 2,
+                    height: 38,
+                    color: const Color(0xFFE5E7EB),
+                  ),
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.primary,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(width: 12),
@@ -474,32 +953,111 @@ class _RuteTersediaCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(halteAsal,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w500)),
-                    const SizedBox(height: 16),
-                    Text(halteTujuan,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w500)),
+                    Text(
+                      halteAsal,
+                      style: const TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1A1A2E),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      hasDepartures
+                          ? 'Bus tiba di halte awal jam: ${info['nextDepartureFormatted']}'
+                          : 'Operasional hari ini selesai',
+                      style: TextStyle(
+                        fontFamily: 'DMSans',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: hasDepartures ? const Color(0xFFD97706) : Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      halteTujuan,
+                      style: const TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1A1A2E),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      hasDepartures
+                          ? 'Estimasi Tiba: ${formatTime((info['nextDeparture'] as DateTime).add(Duration(minutes: duration)))}'
+                          : 'Estimasi Tiba: -',
+                      style: const TextStyle(
+                        fontFamily: 'DMSans',
+                        fontSize: 11,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
                   ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          // Tombol Mulai
+          
+          // Mulai Navigasi Button
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: onMulai,
-              icon: const Icon(Icons.navigation, size: 18),
-              label: const Text('Mulai Navigasi',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () {
+                if (hasDepartures) {
+                  onMulai();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Rute bus sedang tidak aktif. Beroperasi kembali besok jam ${info['nextDepartureFormatted']}.',
+                              style: const TextStyle(fontFamily: 'DMSans', fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: const Color(0xFFDC2626), // Red color for floating warning
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
+              },
+              icon: Icon(
+                Icons.near_me_outlined,
+                size: 18,
+                color: hasDepartures ? AppColors.primary : const Color(0xFF9CA3AF),
+              ),
+              label: Text(
+                'Mulai Navigasi',
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: hasDepartures ? AppColors.primary : const Color(0xFF9CA3AF),
+                ),
+              ),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
+                backgroundColor: hasDepartures ? Colors.white : const Color(0xFFF3F4F6),
+                side: BorderSide(
+                  color: hasDepartures ? AppColors.primary : const Color(0xFFE5E7EB),
+                  width: 1.2,
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
           ),

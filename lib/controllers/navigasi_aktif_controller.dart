@@ -34,6 +34,10 @@ class NavigasiAktifController extends ChangeNotifier {
   double _headingSaatIni = 0;
   int _sisaMenitTiba = 0;
   double _kecepatanMps = 6.94; // Default 25 km/jam (dalam m/s)
+
+  bool _userBelumDiHalteAsal = false;
+  int _estimasiBusTibaMenit = 8;
+  DateTime? _nextBusDepartureTime;
   
   StreamSubscription<Position>? _gpsStream;
 
@@ -47,6 +51,25 @@ class NavigasiAktifController extends ChangeNotifier {
   LatLng get lokasiSaatIni => _lokasiSaatIni;
   double get headingSaatIni => _headingSaatIni;
   int get sisaMenitTiba => _sisaMenitTiba;
+  bool get userBelumDiHalteAsal => _userBelumDiHalteAsal;
+  
+  int get estimasiBusTibaMenit {
+    if (_nextBusDepartureTime == null) return _estimasiBusTibaMenit;
+    final diff = _nextBusDepartureTime!.difference(DateTime.now()).inMinutes;
+    return diff > 0 ? diff : 0;
+  }
+  
+  String get estimasiBusTibaJam {
+    if (_nextBusDepartureTime == null) {
+      final dt = DateTime.now().add(Duration(minutes: _estimasiBusTibaMenit));
+      final h = dt.hour.toString().padLeft(2, '0');
+      final m = dt.minute.toString().padLeft(2, '0');
+      return '$h:$m WIB';
+    }
+    final h = _nextBusDepartureTime!.hour.toString().padLeft(2, '0');
+    final m = _nextBusDepartureTime!.minute.toString().padLeft(2, '0');
+    return '$h:$m WIB';
+  }
 
   // ─── LOAD DATA AKTIF ──────────────────────────────────────
   Future<void> loadDataAktif() async {
@@ -61,70 +84,56 @@ class NavigasiAktifController extends ChangeNotifier {
       _perjalananAktif = aktif;
 
       final idRute = aktif.rute?.id;
+      final startHalt = aktif.halteAsal;
+      final destHalt = aktif.halteTujuan;
+      
       if (idRute != null && idRute > 0) {
-        _halteRute = await _halteService.getHalteByRute(idRute);
-
-        // ── Prioritas 1: titik_rute dari database Supabase ──
-        final titikDB = await _ruteService.getTitikRute(idRute);
-        if (titikDB.length >= 2) {
-          final List<LatLng> rawPoints = titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
-          // Pangkas titik (Simplify) agar Map tidak berat me-render
-          _titikPolyline = PolylineUtils.simplify(rawPoints, tolerance: 0.00015);
-          debugPrint('Polyline dari DB (di-simplify): ${_titikPolyline.length} titik dari awal ${rawPoints.length} titik');
-          
-          // Tetap panggil OSRM hanya untuk dapat ETA Real-Time
-          final waypoints = _halteRute.map((h) => LatLng(h.halte.latitude, h.halte.longitude)).toList();
-          final routeData = await _osrmRoutesService.getRoute(waypoints);
-          if (routeData != null) {
-            _sisaMenitTiba = (routeData.durationSeconds / 60).round();
-            if (routeData.durationSeconds > 0) {
-              _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
+        final allHalteRute = await _halteService.getHalteByRute(idRute);
+        if (startHalt != null && destHalt != null) {
+          int indexAsal = allHalteRute.indexWhere((rh) => rh.halte.id == startHalt.id);
+          int indexTujuan = allHalteRute.indexWhere((rh) => rh.halte.id == destHalt.id);
+          if (indexAsal != -1 && indexTujuan != -1) {
+            if (indexAsal <= indexTujuan) {
+              _halteRute = allHalteRute.sublist(indexAsal, indexTujuan + 1);
+            } else {
+              _halteRute = allHalteRute.sublist(indexTujuan, indexAsal + 1).reversed.toList();
             }
+          } else {
+            _halteRute = allHalteRute;
           }
-        } else if (_halteRute.length >= 2) {
-          // ── Prioritas 2: OSRM API ──
-          debugPrint('titik_rute kosong, fallback ke OSRM API');
-          final waypoints = _halteRute
-              .map((h) => LatLng(h.halte.latitude, h.halte.longitude))
-              .toList();
-          final routeData = await _osrmRoutesService.getRoute(waypoints);
-          if (routeData != null) {
-            _titikPolyline = routeData.polyline;
-            _sisaMenitTiba = (routeData.durationSeconds / 60).round();
-            if (routeData.durationSeconds > 0) {
-              _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
-            }
-            debugPrint('Polyline dari OSRM: ${_titikPolyline.length} titik');
-          }
-        }
-      } else if (aktif.rute == null) {
-        // Mode Bebas: Gunakan custom tujuan dari Cache jika di database null
-        final customAtauDbTujuan = aktif.halteTujuan ?? TempCache.customTujuanNavigasi;
-        
-        if (customAtauDbTujuan != null) {
-          final pos = await Geolocator.getCurrentPosition(
-              locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
-          _lokasiSaatIni = LatLng(pos.latitude, pos.longitude);
-
-          final waypoints = [
-            _lokasiSaatIni,
-            LatLng(customAtauDbTujuan.latitude, customAtauDbTujuan.longitude)
-          ];
-          
-          final routeData = await _osrmRoutesService.getRoute(waypoints);
-          if (routeData != null) {
-            _titikPolyline = routeData.polyline;
-            _sisaMenitTiba = (routeData.durationSeconds / 60).round();
-            if (routeData.durationSeconds > 0) {
-              _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
-            }
-            debugPrint('Polyline Bebas dari OSRM: ${_titikPolyline.length} titik');
-          }
+        } else {
+          _halteRute = allHalteRute;
         }
       }
 
-      if (_titikPolyline.isNotEmpty) {
-        _lokasiSaatIni = _titikPolyline.first;
+      // Dapatkan lokasi awal user dulu
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+        _lokasiSaatIni = LatLng(pos.latitude, pos.longitude);
+      } catch (_) {}
+
+      // Muat Polyline rute & user
+      await _muatPolyline();
+
+      // Hitung jadwal keberangkatan bus
+      await _updateBusArrivalSchedule(idRute);
+
+      // Kirim Notifikasi jika jauh dari halte awal (> 100 meter)
+      if (startHalt != null) {
+        final distToAsal = Geolocator.distanceBetween(
+          _lokasiSaatIni.latitude,
+          _lokasiSaatIni.longitude,
+          startHalt.latitude,
+          startHalt.longitude,
+        );
+        if (distToAsal > 100) {
+          NotificationService.showNotification(
+            id: 99,
+            title: 'Lokasi Anda Jauh',
+            body: 'Lokasi Anda jauh dari halte awal ${startHalt.nama}.',
+          );
+        }
       }
 
       mulaiLacakGps();
@@ -136,6 +145,114 @@ class NavigasiAktifController extends ChangeNotifier {
     }
   }
 
+  // ─── MUAT POLYLINE JALUR ──────────────────────────────────
+  Future<void> _muatPolyline() async {
+    final startHalt = _perjalananAktif?.halteAsal;
+    final destHalt = _perjalananAktif?.halteTujuan ?? TempCache.customTujuanNavigasi;
+    final idRute = _perjalananAktif?.rute?.id;
+
+    _userBelumDiHalteAsal = false;
+
+    // 1. Dapatkan Jalur Bus
+    List<LatLng> secondPart = [];
+    if (idRute != null && idRute > 0 && startHalt != null && destHalt != null) {
+      // Prioritas 1: Database koordinat titik_rute
+      final titikDB = await _ruteService.getTitikRute(idRute);
+      if (titikDB.length >= 2) {
+        final List<LatLng> rawPoints = titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
+        secondPart = _sliceRouteCoordinates(rawPoints, startHalt, destHalt);
+        
+        // Dapatkan data rute OSRM hanya untuk estimasi kecepatan
+        final waypoints = [LatLng(startHalt.latitude, startHalt.longitude), LatLng(destHalt.latitude, destHalt.longitude)];
+        final routeData = await _osrmRoutesService.getRoute(waypoints);
+        if (routeData != null && routeData.durationSeconds > 0) {
+          _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
+          _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+        }
+      }
+    }
+
+    // Fallback prioritas 2: OSRM API rute jalan biasa
+    if (secondPart.isEmpty && startHalt != null && destHalt != null) {
+      final waypoints = [
+        LatLng(startHalt.latitude, startHalt.longitude),
+        LatLng(destHalt.latitude, destHalt.longitude)
+      ];
+      final routeData = await _osrmRoutesService.getRoute(waypoints);
+      if (routeData != null) {
+        secondPart = routeData.polyline;
+        _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+        if (routeData.durationSeconds > 0) {
+          _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
+        }
+      } else {
+        secondPart = [
+          LatLng(startHalt.latitude, startHalt.longitude),
+          LatLng(destHalt.latitude, destHalt.longitude)
+        ];
+      }
+    } else if (secondPart.isEmpty && destHalt != null) {
+      // Navigasi Bebas
+      final waypoints = [
+        _lokasiSaatIni,
+        LatLng(destHalt.latitude, destHalt.longitude)
+      ];
+      final routeData = await _osrmRoutesService.getRoute(waypoints);
+      if (routeData != null) {
+        secondPart = routeData.polyline;
+        _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+        if (routeData.durationSeconds > 0) {
+          _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
+        }
+      }
+    }
+
+    _titikPolyline = secondPart;
+  }
+
+  List<LatLng> _sliceRouteCoordinates(
+      List<LatLng> titikDB, Halte asal, Halte tujuan) {
+    int indexAsal = -1;
+    int indexTujuan = -1;
+    double minDistanceAsal = double.infinity;
+    double minDistanceTujuan = double.infinity;
+
+    for (int i = 0; i < titikDB.length; i++) {
+      final pt = titikDB[i];
+
+      final distAsal = Geolocator.distanceBetween(
+        asal.latitude,
+        asal.longitude,
+        pt.latitude,
+        pt.longitude,
+      );
+      if (distAsal < minDistanceAsal) {
+        minDistanceAsal = distAsal;
+        indexAsal = i;
+      }
+
+      final distTujuan = Geolocator.distanceBetween(
+        tujuan.latitude,
+        tujuan.longitude,
+        pt.latitude,
+        pt.longitude,
+      );
+      if (distTujuan < minDistanceTujuan) {
+        minDistanceTujuan = distTujuan;
+        indexTujuan = i;
+      }
+    }
+
+    if (indexAsal != -1 && indexTujuan != -1) {
+      if (indexAsal <= indexTujuan) {
+        return titikDB.sublist(indexAsal, indexTujuan + 1);
+      } else {
+        return titikDB.sublist(indexTujuan, indexAsal + 1).reversed.toList();
+      }
+    }
+    return PolylineUtils.simplify(titikDB, tolerance: 0.00015);
+  }
+
   // ─── GPS STREAM ───────────────────────────────────────────
   void mulaiLacakGps() {
     _gpsStream?.cancel();
@@ -144,18 +261,47 @@ class NavigasiAktifController extends ChangeNotifier {
         accuracy: LocationAccuracy.high,
         distanceFilter: 10,
       ),
-    ).listen((Position pos) {
+    ).listen((Position pos) async {
       _lokasiSaatIni = LatLng(pos.latitude, pos.longitude);
       _headingSaatIni = pos.heading; // Menyimpan arah pergerakan (0-360)
 
-      // Kalkulasi jarak ke tujuan dan ETA dinamis
-      final halteTujuan = _perjalananAktif?.halteTujuan ?? TempCache.customTujuanNavigasi;
-      if (halteTujuan != null) {
+      final startHalt = _perjalananAktif?.halteAsal;
+      final destHalt = _perjalananAktif?.halteTujuan ?? TempCache.customTujuanNavigasi;
+
+      if (startHalt != null && _userBelumDiHalteAsal) {
+        final distToAsal = Geolocator.distanceBetween(
+          pos.latitude,
+          pos.longitude,
+          startHalt.latitude,
+          startHalt.longitude,
+        );
+
+        if (distToAsal <= 100) {
+          // Tiba di halte asal! Transisi ke naik bus.
+          _userBelumDiHalteAsal = false;
+          _isLoading = true;
+          notifyListeners();
+          
+          await _muatPolyline();
+          
+          _isLoading = false;
+          notifyListeners();
+        } else {
+          // Estimasi waktu jalan kaki
+          _sisaMenitTiba = (distToAsal / 1.4 / 60).ceil();
+          if (_sisaMenitTiba < 1) _sisaMenitTiba = 1;
+
+          // Kurangi estimasi bus secara dinamis agar realistis
+          if (_estimasiBusTibaMenit > 1 && DateTime.now().second % 15 == 0) {
+            _estimasiBusTibaMenit--;
+          }
+        }
+      } else if (destHalt != null) {
         final jarak = Geolocator.distanceBetween(
           pos.latitude,
           pos.longitude,
-          halteTujuan.latitude,
-          halteTujuan.longitude,
+          destHalt.latitude,
+          destHalt.longitude,
         );
 
         _sisaMenitTiba = (jarak / _kecepatanMps / 60).ceil();
@@ -169,7 +315,7 @@ class NavigasiAktifController extends ChangeNotifier {
             NotificationService.showNotification(
               id: 1,
               title: 'Hampir Sampai!',
-              body: 'Siap-siap, Anda sudah dekat dengan ${halteTujuan.nama}.',
+              body: 'Siap-siap, Anda sudah dekat dengan ${destHalt.nama}.',
             );
           }
         }
@@ -280,6 +426,83 @@ class NavigasiAktifController extends ChangeNotifier {
     );
     // Refresh data perjalanan aktif (gunakan copyWith agar custom route tidak hilang)
     _perjalananAktif = _perjalananAktif!.copyWith(alarmAktif: !isAlarmActive);
+    notifyListeners();
+  }
+
+  // ─── UPDATE JADWAL BUS DARI DATABASE ────────────────────────
+  Future<void> _updateBusArrivalSchedule(int? idRute) async {
+    final now = DateTime.now();
+    DateTime? closestDeparture;
+    
+    if (idRute != null && idRute > 0) {
+      // 1. Fetch departures from database
+      final schedules = await _ruteService.getJadwalRute(idRute);
+      
+      if (schedules.isNotEmpty) {
+        final weekdayNamesEn = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        final weekdayNamesId = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+        final todayEn = weekdayNamesEn[now.weekday].toLowerCase();
+        final todayId = weekdayNamesId[now.weekday].toLowerCase();
+        
+        int minDiffMinutes = 999999;
+        
+        for (final schedule in schedules) {
+          final hariField = schedule['hari'];
+          List<String> listHari = [];
+          if (hariField is List) {
+            listHari = hariField.map((e) => e.toString().toLowerCase()).toList();
+          } else if (hariField is String) {
+            listHari = [hariField.toLowerCase()];
+          }
+          
+          if (listHari.isNotEmpty) {
+            final isMatch = listHari.any((h) => 
+              h == 'setiap hari' || 
+              h == 'daily' || 
+              h == todayEn || 
+              h == todayId
+            );
+            if (!isMatch) continue;
+          }
+          
+          final jamBerangkat = schedule['jam_berangkat']?.toString();
+          if (jamBerangkat == null || !jamBerangkat.contains(':')) continue;
+          
+          final parts = jamBerangkat.split(':');
+          final hour = int.tryParse(parts[0]);
+          final minute = int.tryParse(parts[1]);
+          if (hour == null || minute == null) continue;
+          
+          final depTimeToday = DateTime(now.year, now.month, now.day, hour, minute);
+          int diff = depTimeToday.difference(now).inMinutes;
+          
+          if (diff > 0 && diff < minDiffMinutes) {
+            minDiffMinutes = diff;
+            closestDeparture = depTimeToday;
+          } else if (diff <= 0) {
+            final depTimeTomorrow = depTimeToday.add(const Duration(days: 1));
+            int diffTom = depTimeTomorrow.difference(now).inMinutes;
+            if (diffTom > 0 && diffTom < minDiffMinutes) {
+              minDiffMinutes = diffTom;
+              closestDeparture = depTimeTomorrow;
+            }
+          }
+        }
+      }
+    }
+    
+    // 2. Fallback jika tidak ada data dari database (jadwal kosong atau navigasi bebas)
+    if (closestDeparture == null) {
+      final currentMinute = now.minute;
+      final int interval = 30;
+      final nextBusMinute = ((currentMinute ~/ interval) + 1) * interval;
+      closestDeparture = DateTime(now.year, now.month, now.day, now.hour).add(Duration(minutes: nextBusMinute));
+    }
+    
+    _nextBusDepartureTime = closestDeparture;
+    _estimasiBusTibaMenit = _nextBusDepartureTime!.difference(now).inMinutes;
+    if (_estimasiBusTibaMenit < 1) _estimasiBusTibaMenit = 1;
+    
     notifyListeners();
   }
 
