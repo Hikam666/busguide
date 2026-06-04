@@ -136,12 +136,6 @@ class TentangAplikasiScreen extends StatelessWidget {
                     label: 'Info Armada PO Bus',
                     desc: 'Informasi lengkap PO bus, kelas, dan fasilitas.',
                   ),
-                  _FeatureItem(
-                    icon: Icons.wifi_off_outlined,
-                    label: 'Mode Offline',
-                    desc: 'Akses rute tersimpan tanpa koneksi internet.',
-                    isLast: true,
-                  ),
                 ],
               ),
             ),
@@ -154,7 +148,7 @@ class TentangAplikasiScreen extends StatelessWidget {
               child: Column(
                 children: [
                   _DetailRow(
-                      label: 'Platform', value: 'Android & iOS'),
+                      label: 'Platform', value: 'Android'),
                   _DetailRow(
                       label: 'Framework', value: 'Flutter'),
                   _DetailRow(
