@@ -425,15 +425,32 @@ class NavigasiController extends ChangeNotifier {
       // 2. Dapatkan bagian 2: dari _halteAsal ke _halteTujuan (Jalur Bus)
       List<LatLng> secondPart = [];
       if (idRute > 0) {
-        // ── Prioritas 1: titik_rute dari database Supabase ──
-        final titikDB = await _ruteService.getTitikRute(idRute);
-        if (titikDB.length >= 2) {
-          final List<LatLng> rawPoints =
-              titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
-          if (_halteAsal != null && _halteTujuan != null && _halteAsal!.id != 0) {
-            secondPart = _sliceRouteCoordinates(rawPoints, _halteAsal!, _halteTujuan!);
-          } else {
-            secondPart = PolylineUtils.simplify(rawPoints, tolerance: 0.00015);
+        // Coba dapatkan rute OSRM melewati semua halte rute terlebih dahulu agar mengikuti jalan
+        if (_halteRute.length >= 2) {
+          final waypoints = _halteRute
+              .where((rh) => rh.halte.id != 0 && rh.halte.id != -1) // abaikan lokasi saat ini/custom jika ada
+              .map((rh) => LatLng(rh.halte.latitude, rh.halte.longitude))
+              .toList();
+          
+          if (waypoints.length >= 2) {
+            final routeData = await _osrmRoutesService.getRoute(waypoints);
+            if (routeData != null && routeData.polyline.isNotEmpty) {
+              secondPart = routeData.polyline;
+            }
+          }
+        }
+
+        // Fallback: Database koordinat titik_rute dari database Supabase jika OSRM gagal
+        if (secondPart.isEmpty) {
+          final titikDB = await _ruteService.getTitikRute(idRute);
+          if (titikDB.length >= 2) {
+            final List<LatLng> rawPoints =
+                titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
+            if (_halteAsal != null && _halteTujuan != null && _halteAsal!.id != 0) {
+              secondPart = _sliceRouteCoordinates(rawPoints, _halteAsal!, _halteTujuan!);
+            } else {
+              secondPart = PolylineUtils.simplify(rawPoints, tolerance: 0.00015);
+            }
           }
         }
       }

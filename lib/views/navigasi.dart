@@ -198,7 +198,15 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
       }
     }
 
-    final error = await ctrl.mulaiNavigasi(rute, writeToDb: hasDeparturesToday);
+    // JANGAN SIMPAN RIWAYAT JIKA:
+    // 1. Rute ID == 0 (BEBAS atau LOKAL)
+    // 2. Custom coordinates (halteAsal.id == -1 atau halteTujuan.id == -1)
+    // 3. Tidak ada jadwal keberangkatan bus yang aktif saat ini
+    final isCustomLocation = (ctrl.halteAsal?.id == -1 || ctrl.halteTujuan?.id == -1);
+    final isBebasOrLokal = (rute.id == 0);
+    final shouldWriteToDb = !isBebasOrLokal && !isCustomLocation && hasDeparturesToday;
+
+    final error = await ctrl.mulaiNavigasi(rute, writeToDb: shouldWriteToDb);
     if (!mounted) return;
     
     if (error != null) {
@@ -206,7 +214,8 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
         SnackBar(content: Text(error), backgroundColor: Colors.red),
       );
     } else {
-      if (!hasDeparturesToday) {
+      if (!shouldWriteToDb && !isBebasOrLokal && !isCustomLocation) {
+        // Hanya beri tahu jika itu rute bus yang sebenarnya tidak beroperasi saat ini
         String formattedTime = earliestTime;
         if (earliestTime.contains(':')) {
           final parts = earliestTime.split(':');
@@ -218,24 +227,24 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
+                const Icon(Icons.info_outline, color: Colors.white, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Bus tidak aktif saat ini. Rute ini beroperasi kembali besok jam $formattedTime WIB.',
+                    'Memulai Navigasi Mandiri. Bus tidak aktif saat ini (kembali beroperasi besok jam $formattedTime WIB).',
                     style: const TextStyle(fontFamily: 'DMSans', fontSize: 12),
                   ),
                 ),
               ],
             ),
-            backgroundColor: const Color(0xFFD97706),
+            backgroundColor: AppColors.primary,
             duration: const Duration(seconds: 4),
           ),
         );
       }
 
       // Refresh HomeController so Home shows the active perjalanan immediately if written to DB
-      if (hasDeparturesToday) {
+      if (shouldWriteToDb) {
         try {
           await context.read<HomeController>().loadData();
         } catch (_) {}
@@ -785,11 +794,117 @@ class _RuteTersediaCard extends StatelessWidget {
 
     final info = _getScheduleInfo();
     final hasDepartures = info['hasDeparturesToday'] as bool;
+    final isPureMandiri = (rute.id == 0);
 
     String formatTime(DateTime dt) {
       final h = dt.hour.toString().padLeft(2, '0');
       final m = dt.minute.toString().padLeft(2, '0');
       return '$h:$m WIB';
+    }
+
+    if (isPureMandiri) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.motorcycle, size: 14, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        rute.id == 0 ? 'Navigasi Mandiri' : 'Bus Tidak Aktif',
+                        style: const TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  durationText,
+                  style: const TextStyle(
+                    fontFamily: 'DMSans',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF4B5563),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(Icons.location_on, color: Colors.grey, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$halteAsal ➔ $halteTujuan',
+                    style: const TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1A1A2E),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onMulai,
+                icon: const Icon(
+                  Icons.motorcycle,
+                  size: 18,
+                  color: AppColors.primary,
+                ),
+                label: const Text(
+                  'Mulai Navigasi Mandiri',
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: AppColors.primary,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  side: const BorderSide(
+                    color: AppColors.primary,
+                    width: 1.2,
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     return Container(
@@ -805,41 +920,75 @@ class _RuteTersediaCard extends StatelessWidget {
         children: [
           // Header badges row
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: badgeColor,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  'Trans Jatim',
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    fontSize: 11,
-                  ),
+              Expanded(
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: badgeColor,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Trans Jatim',
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEAF1FF),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        serviceLabel,
+                        style: const TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1D4ED8),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                    if (!hasDepartures)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEE2E2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.directions_bus_filled_outlined, size: 12, color: AppColors.error),
+                            SizedBox(width: 4),
+                            Text(
+                              'Bus Tidak Aktif',
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.error,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEAF1FF),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  serviceLabel,
-                  style: const TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1D4ED8),
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 durationText,
                 style: const TextStyle(
@@ -853,39 +1002,7 @@ class _RuteTersediaCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // Operational Days & Tariff Row
-          Row(
-            children: [
-              const Icon(Icons.payments_outlined, size: 14, color: AppColors.primary),
-              const SizedBox(width: 4),
-              Text(
-                'Rp ${info['tarif'].toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]}.")}',
-                style: const TextStyle(
-                  fontFamily: 'PlusJakartaSans',
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Icon(Icons.calendar_month_outlined, size: 14, color: Colors.grey[600]),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  info['hari'],
-                  style: TextStyle(
-                    fontFamily: 'DMSans',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[600],
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+
 
           // Warning notice banner if no departures left today
           if (!hasDepartures)
@@ -1006,52 +1123,25 @@ class _RuteTersediaCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () {
-                if (hasDepartures) {
-                  onMulai();
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Row(
-                        children: [
-                          const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Rute bus sedang tidak aktif. Beroperasi kembali besok jam ${info['nextDepartureFormatted']}.',
-                              style: const TextStyle(fontFamily: 'DMSans', fontSize: 12),
-                            ),
-                          ),
-                        ],
-                      ),
-                      backgroundColor: const Color(0xFFDC2626), // Red color for floating warning
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                }
-              },
+              onPressed: onMulai,
               icon: Icon(
-                Icons.near_me_outlined,
+                !hasDepartures ? Icons.motorcycle : Icons.near_me_outlined,
                 size: 18,
-                color: hasDepartures ? AppColors.primary : const Color(0xFF9CA3AF),
+                color: AppColors.primary,
               ),
               label: Text(
-                'Mulai Navigasi',
-                style: TextStyle(
+                !hasDepartures ? 'Mulai Navigasi Mandiri' : 'Mulai Navigasi',
+                style: const TextStyle(
                   fontFamily: 'PlusJakartaSans',
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
-                  color: hasDepartures ? AppColors.primary : const Color(0xFF9CA3AF),
+                  color: AppColors.primary,
                 ),
               ),
               style: OutlinedButton.styleFrom(
-                backgroundColor: hasDepartures ? Colors.white : const Color(0xFFF3F4F6),
-                side: BorderSide(
-                  color: hasDepartures ? AppColors.primary : const Color(0xFFE5E7EB),
+                backgroundColor: Colors.white,
+                side: const BorderSide(
+                  color: AppColors.primary,
                   width: 1.2,
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 12),

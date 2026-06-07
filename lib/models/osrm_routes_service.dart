@@ -16,7 +16,7 @@ class RouteData {
 }
 
 class OsrmRoutesService {
-  static const String _baseUrl = 'http://router.project-osrm.org/route/v1/driving/';
+  static const String _baseUrl = 'https://router.project-osrm.org/route/v1/driving/';
 
   /// Ambil rute dari OSRM API (Gratis, tanpa API Key)
   Future<RouteData?> getRoute(List<LatLng> waypoints) async {

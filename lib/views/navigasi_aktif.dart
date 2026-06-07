@@ -15,33 +15,88 @@ class NavigasiAktifScreen extends StatefulWidget {
   State<NavigasiAktifScreen> createState() => _NavigasiAktifScreenState();
 }
 
-class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
+class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> with SingleTickerProviderStateMixin {
   final _mapController = MapController();
 
-  LatLng? _lastMapCenter;
+  // Animasi GPS tracking agar pergerakan penanda dan kamera peta sangat mulus
+  late AnimationController _animationController;
+  LatLng? _currentAnimatedLocation;
+  double _currentAnimatedHeading = 0.0;
+  LatLng _startLocation = const LatLng(0, 0);
+  LatLng _targetLocation = const LatLng(0, 0);
+  double _startHeading = 0.0;
+  double _targetHeading = 0.0;
 
   @override
   void initState() {
     super.initState();
+    
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 950), // Interpolasi 950ms agar tumpang tindih secara mulus
+    );
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctrl = context.read<NavigasiAktifController>();
       
-      // Auto-center map ketika lokasi berubah
+      // Menggerakkan marker & kamera secara mulus via listener
       ctrl.addListener(() {
         if (!mounted) return;
-        if (ctrl.userBelumDiHalteAsal) {
-          // Biarkan user bebas melihat rute saat jalan kaki
+        final newLoc = ctrl.lokasiSaatIni;
+        final newHeading = ctrl.headingSaatIni;
+
+        if (_currentAnimatedLocation == null) {
+          setState(() {
+            _currentAnimatedLocation = newLoc;
+            _currentAnimatedHeading = newHeading;
+          });
           return;
         }
-        final currentLoc = ctrl.lokasiSaatIni;
-        final currentHeading = ctrl.headingSaatIni;
-        if (_lastMapCenter != currentLoc) {
-          _lastMapCenter = currentLoc;
-          try {
-            // Putar peta secara otomatis agar menghadap arah jalan
-            _mapController.moveAndRotate(currentLoc, 16.5, currentHeading);
-          } catch (_) {} // Abaikan jika map belum siap
+
+        _startLocation = _currentAnimatedLocation!;
+        _targetLocation = newLoc;
+        _startHeading = _currentAnimatedHeading;
+
+        // Cegah putaran berlebih jika melewati sudut 360/0 derajat
+        double diff = newHeading - _startHeading;
+        if (diff > 180) {
+          _targetHeading = newHeading - 360;
+        } else if (diff < -180) {
+          _targetHeading = newHeading + 360;
+        } else {
+          _targetHeading = newHeading;
         }
+
+        _animationController.stop();
+        _animationController.reset();
+
+        final Animation<double> curve = CurvedAnimation(
+          parent: _animationController,
+          curve: Curves.linear, // Pergerakan konstan/linear terasa paling alami untuk navigasi kendaraan
+        );
+
+        _animationController.addListener(() {
+          if (!mounted) return;
+          final t = curve.value;
+
+          final lat = _startLocation.latitude + (_targetLocation.latitude - _startLocation.latitude) * t;
+          final lng = _startLocation.longitude + (_targetLocation.longitude - _startLocation.longitude) * t;
+          
+          setState(() {
+            _currentAnimatedLocation = LatLng(lat, lng);
+            double heading = _startHeading + (_targetHeading - _startHeading) * t;
+            _currentAnimatedHeading = (heading + 360) % 360;
+          });
+
+          // Pindahkan & putar peta secara otomatis agar sinkron dengan laju motor
+          if (!ctrl.userBelumDiHalteAsal) {
+            try {
+              _mapController.moveAndRotate(_currentAnimatedLocation!, 16.5, _currentAnimatedHeading);
+            } catch (_) {}
+          }
+        });
+
+        _animationController.forward();
       });
 
       ctrl.loadDataAktif().then((_) {
@@ -85,6 +140,12 @@ class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
         }
       });
     });
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   void _fitRouteBounds() {
@@ -154,14 +215,39 @@ class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
             final namaTujuan = ctrl.perjalananAktif!.halteTujuan?.nama ?? '-';
             final isAlarmActive = ctrl.perjalananAktif!.alarmAktif;
 
+            // Cek apakah ini perjalanan mandiri (tanpa bus)
+            final isBebasOrMandiri = ctrl.perjalananAktif!.rute?.id == 0 ||
+                ctrl.perjalananAktif!.rute?.kode == 'BEBAS' ||
+                ctrl.perjalananAktif!.rute?.kode == 'LOKAL' ||
+                ctrl.perjalananAktif!.id == -999;
+
             final startHaltName = ctrl.perjalananAktif!.halteAsal?.nama ?? 'Halte Asal';
-            final headerIcon = ctrl.userBelumDiHalteAsal ? Icons.directions_walk : Icons.directions_bus;
-            final headerIconBgColor = ctrl.userBelumDiHalteAsal ? const Color(0xFFFEF3C7) : AppColors.surfaceVariant;
-            final headerIconColor = ctrl.userBelumDiHalteAsal ? const Color(0xFFD97706) : AppColors.primary;
-            final headerTitle = ctrl.userBelumDiHalteAsal ? 'Menuju Halte $startHaltName' : 'Naik bus $ruteNama';
-            final headerSubtitle = ctrl.userBelumDiHalteAsal ? 'Lanjut naik bus $ruteNama' : 'Arah $namaTujuan';
-            final nextHaltTitle = ctrl.userBelumDiHalteAsal ? 'Halte Keberangkatan' : 'Halte Berikutnya';
-            final nextHaltName = ctrl.userBelumDiHalteAsal ? startHaltName : (ctrl.halteBerikutnya?.nama ?? namaTujuan);
+            
+            final IconData headerIcon;
+            final Color headerIconBgColor;
+            final Color headerIconColor;
+            final String headerTitle;
+            final String headerSubtitle;
+            final String nextHaltTitle;
+            final String nextHaltName;
+
+            if (isBebasOrMandiri) {
+              headerIcon = Icons.motorcycle;
+              headerIconBgColor = const Color(0xFFE0F2FE); // Soft blue background
+              headerIconColor = const Color(0xFF0284C7); // Sky blue icon
+              headerTitle = 'Navigasi ke $namaTujuan';
+              headerSubtitle = 'Rute Mandiri (Tanpa Bus)';
+              nextHaltTitle = 'Tujuan Akhir';
+              nextHaltName = namaTujuan;
+            } else {
+              headerIcon = ctrl.userBelumDiHalteAsal ? Icons.directions_walk : Icons.directions_bus;
+              headerIconBgColor = ctrl.userBelumDiHalteAsal ? const Color(0xFFFEF3C7) : AppColors.surfaceVariant;
+              headerIconColor = ctrl.userBelumDiHalteAsal ? const Color(0xFFD97706) : AppColors.primary;
+              headerTitle = ctrl.userBelumDiHalteAsal ? 'Menuju Halte $startHaltName' : 'Naik bus $ruteNama';
+              headerSubtitle = ctrl.userBelumDiHalteAsal ? 'Lanjut naik bus $ruteNama' : 'Arah $namaTujuan';
+              nextHaltTitle = ctrl.userBelumDiHalteAsal ? 'Halte Keberangkatan' : 'Halte Berikutnya';
+              nextHaltName = ctrl.userBelumDiHalteAsal ? startHaltName : (ctrl.halteBerikutnya?.nama ?? namaTujuan);
+            }
 
             return Column(
               children: [
@@ -216,7 +302,7 @@ class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
                       FlutterMap(
                         mapController: _mapController,
                         options: MapOptions(
-                            initialCenter: ctrl.lokasiSaatIni,
+                            initialCenter: _currentAnimatedLocation ?? ctrl.lokasiSaatIni,
                             initialZoom: 17.5,
                             interactionOptions: const InteractionOptions(
                               flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
@@ -266,11 +352,11 @@ class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
                                     )),
                             ],
                             Marker(
-                              point: ctrl.lokasiSaatIni,
+                              point: _currentAnimatedLocation ?? ctrl.lokasiSaatIni,
                               width: 60,
                               height: 60,
                               child: Transform.rotate(
-                                angle: ctrl.headingSaatIni * (3.14159 / 180), // Derajat ke radian
+                                angle: (_currentAnimatedLocation != null ? _currentAnimatedHeading : ctrl.headingSaatIni) * (3.14159 / 180), // Derajat ke radian
                                 child: Container(
                                   decoration: BoxDecoration(
                                     color: Colors.white,
@@ -445,7 +531,7 @@ class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> {
                                   ),
                                 ],
                               ),
-                              if (!ctrl.userBelumDiHalteAsal) ...[
+                              if (!ctrl.userBelumDiHalteAsal && !isBebasOrMandiri) ...[
                                 const SizedBox(height: 16),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

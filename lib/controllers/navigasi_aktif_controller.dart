@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 
 import 'package:busguide/models/osrm_routes_service.dart';
 import 'package:busguide/models/rute_service.dart';
@@ -34,6 +35,12 @@ class NavigasiAktifController extends ChangeNotifier {
   double _headingSaatIni = 0;
   int _sisaMenitTiba = 0;
   double _kecepatanMps = 6.94; // Default 25 km/jam (dalam m/s)
+
+  // Logika Pemotongan Rute & Rerouting
+  List<LatLng> _originalRoutePolyline = [];
+  int _lastPassedRouteIndex = 0;
+  bool _isRerouting = false;
+  DateTime? _lastRerouteTime;
 
   bool _userBelumDiHalteAsal = false;
   int _estimasiBusTibaMenit = 8;
@@ -156,18 +163,39 @@ class NavigasiAktifController extends ChangeNotifier {
     // 1. Dapatkan Jalur Bus
     List<LatLng> secondPart = [];
     if (idRute != null && idRute > 0 && startHalt != null && destHalt != null) {
-      // Prioritas 1: Database koordinat titik_rute
-      final titikDB = await _ruteService.getTitikRute(idRute);
-      if (titikDB.length >= 2) {
-        final List<LatLng> rawPoints = titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
-        secondPart = _sliceRouteCoordinates(rawPoints, startHalt, destHalt);
+      // Coba dapatkan rute OSRM melewati semua halte rute terlebih dahulu agar mengikuti jalan
+      if (_halteRute.length >= 2) {
+        final waypoints = _halteRute
+            .where((rh) => rh.halte.id != 0 && rh.halte.id != -1) // abaikan lokasi saat ini/custom jika ada
+            .map((rh) => LatLng(rh.halte.latitude, rh.halte.longitude))
+            .toList();
         
-        // Dapatkan data rute OSRM hanya untuk estimasi kecepatan
-        final waypoints = [LatLng(startHalt.latitude, startHalt.longitude), LatLng(destHalt.latitude, destHalt.longitude)];
-        final routeData = await _osrmRoutesService.getRoute(waypoints);
-        if (routeData != null && routeData.durationSeconds > 0) {
-          _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
-          _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+        if (waypoints.length >= 2) {
+          final routeData = await _osrmRoutesService.getRoute(waypoints);
+          if (routeData != null && routeData.polyline.isNotEmpty) {
+            secondPart = routeData.polyline;
+            _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+            if (routeData.durationSeconds > 0) {
+              _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
+            }
+          }
+        }
+      }
+
+      // Fallback: Database koordinat titik_rute jika OSRM gagal
+      if (secondPart.isEmpty) {
+        final titikDB = await _ruteService.getTitikRute(idRute);
+        if (titikDB.length >= 2) {
+          final List<LatLng> rawPoints = titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
+          secondPart = _sliceRouteCoordinates(rawPoints, startHalt, destHalt);
+          
+          // Dapatkan data rute OSRM hanya untuk estimasi kecepatan
+          final waypoints = [LatLng(startHalt.latitude, startHalt.longitude), LatLng(destHalt.latitude, destHalt.longitude)];
+          final routeData = await _osrmRoutesService.getRoute(waypoints);
+          if (routeData != null && routeData.durationSeconds > 0) {
+            _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
+            _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+          }
         }
       }
     }
@@ -207,7 +235,9 @@ class NavigasiAktifController extends ChangeNotifier {
       }
     }
 
-    _titikPolyline = secondPart;
+    _originalRoutePolyline = List.from(secondPart);
+    _lastPassedRouteIndex = 0;
+    _sliceRouteFromCurrentLocation();
   }
 
   List<LatLng> _sliceRouteCoordinates(
@@ -256,17 +286,51 @@ class NavigasiAktifController extends ChangeNotifier {
   // ─── GPS STREAM ───────────────────────────────────────────
   void mulaiLacakGps() {
     _gpsStream?.cancel();
+
+    // Mengonfigurasi lokasi untuk akurasi terbaik dan update realtime
+    LocationSettings locationSettings;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      locationSettings = AndroidSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 0,
+        intervalDuration: const Duration(seconds: 1),
+      );
+    } else if (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS) {
+      locationSettings = AppleSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 0,
+        activityType: ActivityType.fitness,
+        pauseLocationUpdatesAutomatically: true,
+      );
+    } else {
+      locationSettings = const LocationSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 0,
+      );
+    }
+
     _gpsStream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
-      ),
+      locationSettings: locationSettings,
     ).listen((Position pos) async {
       _lokasiSaatIni = LatLng(pos.latitude, pos.longitude);
       _headingSaatIni = pos.heading; // Menyimpan arah pergerakan (0-360)
 
       final startHalt = _perjalananAktif?.halteAsal;
       final destHalt = _perjalananAktif?.halteTujuan ?? TempCache.customTujuanNavigasi;
+      final idRute = _perjalananAktif?.rute?.id;
+      final isBebasOrMandiri = idRute == 0 || _perjalananAktif?.id == -999;
+
+      // Potong polyline di belakang secara mulus
+      final distanceToRoute = _sliceRouteFromCurrentLocation();
+
+      // Trigger rerouting otomatis jika keluar jalur > 50 meter
+      if (_originalRoutePolyline.isNotEmpty && distanceToRoute > 50.0) {
+        if (_userBelumDiHalteAsal && startHalt != null) {
+          recalculateRoute(target: LatLng(startHalt.latitude, startHalt.longitude));
+        } else if (isBebasOrMandiri && destHalt != null) {
+          recalculateRoute(target: LatLng(destHalt.latitude, destHalt.longitude));
+        }
+      }
 
       if (startHalt != null && _userBelumDiHalteAsal) {
         final distToAsal = Geolocator.distanceBetween(
@@ -326,6 +390,75 @@ class NavigasiAktifController extends ChangeNotifier {
     }, onError: (e) {
       debugPrint('GPS Stream error: $e');
     });
+  }
+
+  // ─── SLICE ROUTE FROM CURRENT LOCATION ────────────────────
+  double _sliceRouteFromCurrentLocation() {
+    if (_originalRoutePolyline.isEmpty) return 0.0;
+
+    int closestIndex = _lastPassedRouteIndex;
+    double minDistance = double.infinity;
+
+    for (int i = _lastPassedRouteIndex; i < _originalRoutePolyline.length; i++) {
+      final dist = Geolocator.distanceBetween(
+        _lokasiSaatIni.latitude,
+        _lokasiSaatIni.longitude,
+        _originalRoutePolyline[i].latitude,
+        _originalRoutePolyline[i].longitude,
+      );
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIndex = i;
+      }
+    }
+
+    _lastPassedRouteIndex = closestIndex;
+
+    if (closestIndex != -1 && closestIndex < _originalRoutePolyline.length) {
+      final remaining = _originalRoutePolyline.sublist(closestIndex);
+      _titikPolyline = [_lokasiSaatIni, ...remaining];
+    } else {
+      _titikPolyline = [_lokasiSaatIni, ..._originalRoutePolyline];
+    }
+
+    return minDistance;
+  }
+
+  // ─── RECALCULATE ROUTE (REROUTING) ────────────────────────
+  Future<void> recalculateRoute({required LatLng target}) async {
+    if (_isRerouting) return;
+    final now = DateTime.now();
+    if (_lastRerouteTime != null && now.difference(_lastRerouteTime!).inSeconds < 10) {
+      return; // Cooldown 10 detik agar tidak spam OSRM API
+    }
+
+    _isRerouting = true;
+    _lastRerouteTime = now;
+
+    try {
+      final waypoints = [
+        _lokasiSaatIni,
+        target,
+      ];
+      final routeData = await _osrmRoutesService.getRoute(waypoints);
+      if (routeData != null && routeData.polyline.isNotEmpty) {
+        _originalRoutePolyline = routeData.polyline;
+        _lastPassedRouteIndex = 0;
+        
+        _sliceRouteFromCurrentLocation();
+
+        _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+        if (routeData.durationSeconds > 0) {
+          _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
+        }
+        notifyListeners();
+        debugPrint("Successfully rerouted to target: ${target.latitude}, ${target.longitude}");
+      }
+    } catch (e) {
+      debugPrint("Error during rerouting: $e");
+    } finally {
+      _isRerouting = false;
+    }
   }
 
   // ─── UPDATE HALTE BERIKUTNYA ──────────────────────────────
