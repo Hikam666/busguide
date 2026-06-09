@@ -234,43 +234,6 @@ class _DetailWisataScreenState extends State<DetailWisataScreen> {
                   const SizedBox(height: 28),
                 ],
 
-                // Rute bus
-                if (ruteList.isNotEmpty) ...[
-                  const Text(
-                    'Rute bus menuju sini',
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF1A1A2E),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ...ruteList.map((rute) {
-                    final isSelected = _selectedRute?.id == rute.id;
-                    return GestureDetector(
-                      onTap: () => _selectRute(rute),
-                      child: _RuteListItem(
-                        rute: rute,
-                        isSelected: isSelected,
-                      ),
-                    );
-                  }),
-                  if (_selectedRute != null) ...[
-                    const SizedBox(height: 16),
-                    _InteractiveRuteMap(
-                      rute: _selectedRute!,
-                      points: _selectedRutePoints,
-                      isLoading: _isLoadingMap,
-                    ),
-                  ],
-                ] else ...[
-                  const SizedBox(height: 16),
-                  const _StateInfo(
-                    message: 'Belum ada rute bus yang tersedia untuk lokasi ini.',
-                  ),
-                ],
-
                 const SizedBox(height: 32),
               ],
             ),
