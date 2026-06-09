@@ -45,6 +45,7 @@ class Rute {
   final String statusOperasi; // 'aktif' | 'tidak_aktif'
   final Halte? terminalAwal;
   final Halte? terminalAkhir;
+  final int? estimasiMenit;
 
   const Rute({
     required this.id,
@@ -53,6 +54,7 @@ class Rute {
     this.statusOperasi = 'aktif',
     this.terminalAwal,
     this.terminalAkhir,
+    this.estimasiMenit,
   });
 
   factory Rute.fromMap(Map<String, dynamic> map) => Rute(
@@ -65,6 +67,9 @@ class Rute {
             : null,
         terminalAkhir: map['terminal_akhir'] != null
             ? Halte.fromMap(map['terminal_akhir'] as Map<String, dynamic>)
+            : null,
+        estimasiMenit: map['estimasi_menit'] != null
+            ? (map['estimasi_menit'] as num).toInt()
             : null,
       );
 

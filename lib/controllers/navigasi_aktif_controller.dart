@@ -38,6 +38,10 @@ class NavigasiAktifController extends ChangeNotifier {
 
   // Logika Pemotongan Rute & Rerouting
   List<LatLng> _originalRoutePolyline = [];
+  List<LatLng> _busRoutePolyline = [];
+  List<LatLng> _firstPartPolyline = [];
+  List<LatLng> _secondPartPolyline = [];
+  int _firstPartLength = 0;
   int _lastPassedRouteIndex = 0;
   bool _isRerouting = false;
   DateTime? _lastRerouteTime;
@@ -53,6 +57,8 @@ class NavigasiAktifController extends ChangeNotifier {
   bool get isAlmostThere => _isAlmostThere;
   Perjalanan? get perjalananAktif => _perjalananAktif;
   List<LatLng> get titikPolyline => _titikPolyline;
+  List<LatLng> get firstPartPolyline => _firstPartPolyline;
+  List<LatLng> get secondPartPolyline => _secondPartPolyline;
   List<RuteHalte> get halteRute => _halteRute;
   Halte? get halteBerikutnya => _halteBerikutnya;
   LatLng get lokasiSaatIni => _lokasiSaatIni;
@@ -159,12 +165,66 @@ class NavigasiAktifController extends ChangeNotifier {
     final idRute = _perjalananAktif?.rute?.id;
 
     _userBelumDiHalteAsal = false;
+    List<LatLng> firstPart = [];
+    _firstPartLength = 0;
+
+    if (startHalt != null && idRute != null && idRute > 0) {
+      final distToAsal = Geolocator.distanceBetween(
+        _lokasiSaatIni.latitude,
+        _lokasiSaatIni.longitude,
+        startHalt.latitude,
+        startHalt.longitude,
+      );
+      if (distToAsal > 100) {
+        _userBelumDiHalteAsal = true;
+        // Dapatkan rute ke halte asal (firstPart) lewat jalan
+        final routeToAsal = await _osrmRoutesService.getRoute([
+          _lokasiSaatIni,
+          LatLng(startHalt.latitude, startHalt.longitude),
+        ]);
+        if (routeToAsal != null) {
+          firstPart = routeToAsal.polyline;
+        } else {
+          firstPart = [
+            _lokasiSaatIni,
+            LatLng(startHalt.latitude, startHalt.longitude),
+          ];
+        }
+        _firstPartLength = firstPart.length;
+        _sisaMenitTiba = (distToAsal / 1.4 / 60).ceil();
+        if (_sisaMenitTiba < 1) _sisaMenitTiba = 1;
+      }
+    }
 
     // 1. Dapatkan Jalur Bus
     List<LatLng> secondPart = [];
     if (idRute != null && idRute > 0 && startHalt != null && destHalt != null) {
-      // Coba dapatkan rute OSRM melewati semua halte rute terlebih dahulu agar mengikuti jalan
-      if (_halteRute.length >= 2) {
+      // Coba dapatkan rute dari database titik_rute terlebih dahulu
+      final titikDB = await _ruteService.getTitikRute(idRute);
+      if (titikDB.length >= 2) {
+        final List<LatLng> rawPoints = titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
+        final List<LatLng> slicedDbPoints = _sliceRouteCoordinates(rawPoints, startHalt, destHalt);
+        
+        if (slicedDbPoints.length >= 2) {
+          // Haluskan koordinat database mengikuti jalan menggunakan OSRM API
+          final waypoints = _sampleWaypoints(slicedDbPoints, maxPoints: 25);
+          final routeData = await _osrmRoutesService.getRoute(waypoints);
+          if (routeData != null && routeData.polyline.isNotEmpty) {
+            secondPart = routeData.polyline;
+            if (!_userBelumDiHalteAsal) {
+              _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+            }
+            if (routeData.durationSeconds > 0) {
+              _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
+            }
+          } else {
+            secondPart = slicedDbPoints; // Fallback ke koordinat database mentah
+          }
+        }
+      }
+
+      // Fallback: OSRM API rute jalan biasa melewati semua halte rute jika database titik_rute kosong
+      if (secondPart.isEmpty && _halteRute.length >= 2) {
         final waypoints = _halteRute
             .where((rh) => rh.halte.id != 0 && rh.halte.id != -1) // abaikan lokasi saat ini/custom jika ada
             .map((rh) => LatLng(rh.halte.latitude, rh.halte.longitude))
@@ -174,30 +234,18 @@ class NavigasiAktifController extends ChangeNotifier {
           final routeData = await _osrmRoutesService.getRoute(waypoints);
           if (routeData != null && routeData.polyline.isNotEmpty) {
             secondPart = routeData.polyline;
-            _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+            if (!_userBelumDiHalteAsal) {
+              _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+            }
             if (routeData.durationSeconds > 0) {
               _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
             }
           }
         }
       }
-
-      // Fallback: Database koordinat titik_rute jika OSRM gagal
-      if (secondPart.isEmpty) {
-        final titikDB = await _ruteService.getTitikRute(idRute);
-        if (titikDB.length >= 2) {
-          final List<LatLng> rawPoints = titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
-          secondPart = _sliceRouteCoordinates(rawPoints, startHalt, destHalt);
-          
-          // Dapatkan data rute OSRM hanya untuk estimasi kecepatan
-          final waypoints = [LatLng(startHalt.latitude, startHalt.longitude), LatLng(destHalt.latitude, destHalt.longitude)];
-          final routeData = await _osrmRoutesService.getRoute(waypoints);
-          if (routeData != null && routeData.durationSeconds > 0) {
-            _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
-            _sisaMenitTiba = (routeData.durationSeconds / 60).round();
-          }
-        }
-      }
+      _busRoutePolyline = List.from(secondPart);
+    } else {
+      _busRoutePolyline = [];
     }
 
     // Fallback prioritas 2: OSRM API rute jalan biasa
@@ -209,7 +257,9 @@ class NavigasiAktifController extends ChangeNotifier {
       final routeData = await _osrmRoutesService.getRoute(waypoints);
       if (routeData != null) {
         secondPart = routeData.polyline;
-        _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+        if (!_userBelumDiHalteAsal) {
+          _sisaMenitTiba = (routeData.durationSeconds / 60).round();
+        }
         if (routeData.durationSeconds > 0) {
           _kecepatanMps = routeData.distanceMeters / routeData.durationSeconds;
         }
@@ -219,6 +269,7 @@ class NavigasiAktifController extends ChangeNotifier {
           LatLng(destHalt.latitude, destHalt.longitude)
         ];
       }
+      _busRoutePolyline = List.from(secondPart);
     } else if (secondPart.isEmpty && destHalt != null) {
       // Navigasi Bebas
       final waypoints = [
@@ -235,7 +286,11 @@ class NavigasiAktifController extends ChangeNotifier {
       }
     }
 
-    _originalRoutePolyline = List.from(secondPart);
+    if (_userBelumDiHalteAsal) {
+      _originalRoutePolyline = [...firstPart, ...secondPart];
+    } else {
+      _originalRoutePolyline = List.from(secondPart);
+    }
     _lastPassedRouteIndex = 0;
     _sliceRouteFromCurrentLocation();
   }
@@ -394,7 +449,12 @@ class NavigasiAktifController extends ChangeNotifier {
 
   // ─── SLICE ROUTE FROM CURRENT LOCATION ────────────────────
   double _sliceRouteFromCurrentLocation() {
-    if (_originalRoutePolyline.isEmpty) return 0.0;
+    if (_originalRoutePolyline.isEmpty) {
+      _firstPartPolyline = [];
+      _secondPartPolyline = [];
+      _titikPolyline = [];
+      return 0.0;
+    }
 
     int closestIndex = _lastPassedRouteIndex;
     double minDistance = double.infinity;
@@ -417,8 +477,31 @@ class NavigasiAktifController extends ChangeNotifier {
     if (closestIndex != -1 && closestIndex < _originalRoutePolyline.length) {
       final remaining = _originalRoutePolyline.sublist(closestIndex);
       _titikPolyline = [_lokasiSaatIni, ...remaining];
+
+      if (_userBelumDiHalteAsal) {
+        if (closestIndex < _firstPartLength) {
+          // Pengguna masih berada pada jalur hijau (menuju halte asal)
+          _firstPartPolyline = [_lokasiSaatIni, ..._originalRoutePolyline.sublist(closestIndex, _firstPartLength)];
+          _secondPartPolyline = _originalRoutePolyline.sublist(_firstPartLength);
+        } else {
+          // Pengguna telah memasuki jalur bus (telah melewati halte asal)
+          _userBelumDiHalteAsal = false;
+          _firstPartPolyline = [];
+          _secondPartPolyline = [_lokasiSaatIni, ...remaining];
+        }
+      } else {
+        _firstPartPolyline = [];
+        _secondPartPolyline = [_lokasiSaatIni, ...remaining];
+      }
     } else {
       _titikPolyline = [_lokasiSaatIni, ..._originalRoutePolyline];
+      if (_userBelumDiHalteAsal) {
+        _firstPartPolyline = [_lokasiSaatIni, ..._originalRoutePolyline.sublist(0, _firstPartLength)];
+        _secondPartPolyline = _originalRoutePolyline.sublist(_firstPartLength);
+      } else {
+        _firstPartPolyline = [];
+        _secondPartPolyline = [_lokasiSaatIni, ..._originalRoutePolyline];
+      }
     }
 
     return minDistance;
@@ -442,7 +525,13 @@ class NavigasiAktifController extends ChangeNotifier {
       ];
       final routeData = await _osrmRoutesService.getRoute(waypoints);
       if (routeData != null && routeData.polyline.isNotEmpty) {
-        _originalRoutePolyline = routeData.polyline;
+        if (_userBelumDiHalteAsal) {
+          _originalRoutePolyline = [...routeData.polyline, ..._busRoutePolyline];
+          _firstPartLength = routeData.polyline.length;
+        } else {
+          _originalRoutePolyline = routeData.polyline;
+          _firstPartLength = 0;
+        }
         _lastPassedRouteIndex = 0;
         
         _sliceRouteFromCurrentLocation();
@@ -644,5 +733,20 @@ class NavigasiAktifController extends ChangeNotifier {
   void dispose() {
     _gpsStream?.cancel();
     super.dispose();
+  }
+
+  List<LatLng> _sampleWaypoints(List<LatLng> points, {int maxPoints = 25}) {
+    if (points.length <= maxPoints) return points;
+    final List<LatLng> sampled = [];
+    sampled.add(points.first);
+    
+    final double step = (points.length - 1) / (maxPoints - 1);
+    for (int i = 1; i < maxPoints - 1; i++) {
+      final int index = (i * step).round();
+      sampled.add(points[index]);
+    }
+    
+    sampled.add(points.last);
+    return sampled;
   }
 }

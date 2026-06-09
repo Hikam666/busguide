@@ -91,8 +91,17 @@ class Perjalanan {
     }
     // 2. Fallback: hitung selisih waktuSelesai dan waktuMulai
     if (waktuSelesai != null) {
-      final menit = waktuSelesai!.difference(waktuMulai).inMinutes;
-      return _formatMenit(menit < 1 ? 1 : menit);
+      int menit = waktuSelesai!.difference(waktuMulai).inMinutes;
+      if (menit < 1) menit = 1;
+      // Guard: if duration > 5 hours, likely a timezone storage bug.
+      // Use route's estimasiMenit as a reasonable fallback.
+      if (menit > 300 && rute?.estimasiMenit != null) {
+        menit = rute!.estimasiMenit!;
+      } else if (menit > 300) {
+        // No route estimate available, cap at 4 hours max
+        menit = 240;
+      }
+      return _formatMenit(menit);
     }
     return null;
   }

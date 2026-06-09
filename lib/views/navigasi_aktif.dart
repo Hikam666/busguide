@@ -312,13 +312,18 @@ class _NavigasiAktifScreenState extends State<NavigasiAktifScreen> with SingleTi
                               urlTemplate:
                                   'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                               userAgentPackageName: 'com.busguide.app'),
-                          if (ctrl.titikPolyline.isNotEmpty)
-                            PolylineLayer(polylines: [
+                          PolylineLayer(polylines: [
+                            if (ctrl.firstPartPolyline.isNotEmpty)
                               Polyline(
-                                  points: ctrl.titikPolyline,
-                                  color: AppColors.primary,
-                                  strokeWidth: 5)
-                            ]),
+                                  points: ctrl.firstPartPolyline,
+                                  color: const Color(0xFF10B981),
+                                  strokeWidth: 5.5),
+                            if (ctrl.secondPartPolyline.isNotEmpty)
+                              Polyline(
+                                  points: ctrl.secondPartPolyline,
+                                  color: const Color(0xFF007AFF),
+                                  strokeWidth: 5.5),
+                          ]),
                           MarkerLayer(markers: [
                             if (ctrl.userBelumDiHalteAsal) ...[
                               if (ctrl.perjalananAktif?.halteAsal != null)

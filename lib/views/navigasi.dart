@@ -491,30 +491,111 @@ class _NavigasiScreenState extends State<NavigasiScreen> {
                                 urlTemplate:
                                     'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                 userAgentPackageName: 'com.busguide.app'),
-                            if (ctrl.titikPolyline.isNotEmpty)
-                              PolylineLayer(polylines: [
+                            PolylineLayer(polylines: [
+                              if (ctrl.firstPartPolyline.isNotEmpty)
                                 Polyline(
-                                    points: ctrl.titikPolyline,
-                                    color: AppColors.primary,
-                                    strokeWidth: 4),
-                              ]),
+                                    points: ctrl.firstPartPolyline,
+                                    color: const Color(0xFF10B981),
+                                    strokeWidth: 4.5),
+                              if (ctrl.secondPartPolyline.isNotEmpty)
+                                Polyline(
+                                    points: ctrl.secondPartPolyline,
+                                    color: const Color(0xFF007AFF),
+                                    strokeWidth: 4.5),
+                            ]),
                             MarkerLayer(markers: [
+                              // Intermediate halts (excluding start and destination)
                               if (ctrl.halteRute.isNotEmpty)
-                                ...ctrl.halteRute.map((rh) {
+                                ...ctrl.halteRute
+                                    .where((rh) =>
+                                        (ctrl.halteAsal == null || rh.halte.id != ctrl.halteAsal!.id) &&
+                                        (ctrl.halteTujuan == null || rh.halte.id != ctrl.halteTujuan!.id))
+                                    .map((rh) {
                                   return Marker(
                                     point: LatLng(rh.halte.latitude,
                                         rh.halte.longitude),
-                                    width: 16,
-                                    height: 16,
+                                    width: 14,
+                                    height: 14,
                                     child: const Icon(Icons.circle,
-                                        color: Colors.orange, size: 12),
+                                        color: Colors.orange, size: 10),
                                   );
                                 }),
+
+                              // Current User Location GPS Marker
                               Marker(
                                 point: ctrl.lokasiSaatIni,
-                                child: const Icon(Icons.my_location,
-                                    color: AppColors.primary, size: 24),
+                                width: 28,
+                                height: 28,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.2),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Center(
+                                    child: Icon(Icons.my_location,
+                                        color: AppColors.primary, size: 20),
+                                  ),
+                                ),
                               ),
+
+                              // Start Halt Marker (Halte Awal - Green Theme)
+                              if (ctrl.halteAsal != null && ctrl.halteAsal!.id != 0)
+                                Marker(
+                                  point: LatLng(ctrl.halteAsal!.latitude, ctrl.halteAsal!.longitude),
+                                  width: 32,
+                                  height: 32,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: const Color(0xFF10B981), width: 3),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.2),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Center(
+                                      child: Icon(Icons.directions_bus_rounded,
+                                          color: Color(0xFF10B981), size: 16),
+                                    ),
+                                  ),
+                                ),
+
+                              // Destination Halt Marker (Halte Tujuan - Red Theme)
+                              if (ctrl.halteTujuan != null)
+                                Marker(
+                                  point: LatLng(ctrl.halteTujuan!.latitude, ctrl.halteTujuan!.longitude),
+                                  width: 32,
+                                  height: 32,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: const Color(0xFFEF4444), width: 3),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.2),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Center(
+                                      child: Icon(Icons.location_on_rounded,
+                                          color: Color(0xFFEF4444), size: 16),
+                                    ),
+                                  ),
+                                ),
                             ]),
                           ],
                         ),
@@ -654,6 +735,38 @@ class _RuteTersediaCard extends StatelessWidget {
     required this.onMulai,
   });
 
+  // Extract bus info from a schedule record
+  Map<String, dynamic> _extractBusInfo(Map<String, dynamic> schedule) {
+    final bus = schedule['bus'] as Map<String, dynamic>?;
+    if (bus == null) {
+      return {
+        'poName': null,
+        'busType': null,
+        'busName': null,
+        'platNomor': null,
+      };
+    }
+    final poBus = bus['po_bus'] as Map<String, dynamic>?;
+    return {
+      'poName': poBus?['nama']?.toString(),
+      'busType': bus['tipe']?.toString(),
+      'busName': bus['nama_bus']?.toString(),
+      'platNomor': bus['nomor_polisi']?.toString(),
+    };
+  }
+
+  static String _formatRupiah(int amount) {
+    final str = amount.toString();
+    final result = StringBuffer();
+    int count = 0;
+    for (int i = str.length - 1; i >= 0; i--) {
+      if (count > 0 && count % 3 == 0) result.write('.');
+      result.write(str[i]);
+      count++;
+    }
+    return result.toString().split('').reversed.join();
+  }
+
   Map<String, dynamic> _getScheduleInfo() {
     if (schedules.isEmpty) {
       return {
@@ -661,8 +774,10 @@ class _RuteTersediaCard extends StatelessWidget {
         'nextDeparture': null,
         'nextDepartureFormatted': '-',
         'notice': 'Tidak ada jadwal operasi tersedia',
-        'tarif': 10000,
+        'tarif': null,
         'hari': 'Tidak Aktif',
+        'allDepartures': <Map<String, dynamic>>[],
+        'nextBusInfo': <String, dynamic>{},
       };
     }
 
@@ -672,8 +787,15 @@ class _RuteTersediaCard extends StatelessWidget {
     final todayEn = weekdayNamesEn[now.weekday].toLowerCase();
     final todayId = weekdayNamesId[now.weekday].toLowerCase();
 
-    final firstSched = schedules.first;
-    final int tarif = firstSched['tarif'] as int? ?? 10000;
+    // Collect tarif: use first non-null tarif found
+    int? tarif;
+    for (final s in schedules) {
+      final t = s['tarif'];
+      if (t != null && t is int && t > 0) {
+        tarif = t;
+        break;
+      }
+    }
     
     final Set<String> uniqueDays = schedules.expand((s) {
       final h = s['hari'];
@@ -712,6 +834,8 @@ class _RuteTersediaCard extends StatelessWidget {
     }).toList();
 
     DateTime? nextDeparture;
+    Map<String, dynamic>? nextScheduleRecord;
+    final List<Map<String, dynamic>> allDepartures = [];
     
     if (schedulesToday.isNotEmpty) {
       int minDiff = 999999;
@@ -725,13 +849,45 @@ class _RuteTersediaCard extends StatelessWidget {
 
         final depTimeToday = DateTime(now.year, now.month, now.day, hour, minute);
         final diff = depTimeToday.difference(now).inMinutes;
+        
+        final busInfo = _extractBusInfo(s);
+        final formatted = '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+        allDepartures.add({
+          'time': formatted,
+          'isPast': diff <= 0,
+          'isNext': false,
+          'dateTime': depTimeToday,
+          'poName': busInfo['poName'],
+          'busType': busInfo['busType'],
+          'busName': busInfo['busName'],
+          'platNomor': busInfo['platNomor'],
+          'tarif': s['tarif'],
+        });
 
         if (diff > 0 && diff < minDiff) {
           minDiff = diff;
           nextDeparture = depTimeToday;
+          nextScheduleRecord = s;
+        }
+      }
+      
+      // Sort by time and mark the next departure
+      allDepartures.sort((a, b) => (a['dateTime'] as DateTime).compareTo(b['dateTime'] as DateTime));
+      if (nextDeparture != null) {
+        for (final dep in allDepartures) {
+          final dt = dep['dateTime'] as DateTime;
+          if (dt.hour == nextDeparture.hour && dt.minute == nextDeparture.minute) {
+            dep['isNext'] = true;
+            break;
+          }
         }
       }
     }
+
+    // Get bus info for the next departure (or first schedule as fallback)
+    final nextBusInfo = _extractBusInfo(nextScheduleRecord ?? schedules.first);
+    // Use tarif from next schedule if available, else fallback to global
+    final nextTarif = nextScheduleRecord?['tarif'] as int? ?? tarif;
 
     if (nextDeparture != null) {
       final h = nextDeparture.hour.toString().padLeft(2, '0');
@@ -741,8 +897,10 @@ class _RuteTersediaCard extends StatelessWidget {
         'nextDeparture': nextDeparture,
         'nextDepartureFormatted': '$h:$m WIB',
         'notice': null,
-        'tarif': tarif,
+        'tarif': nextTarif,
         'hari': hariOperasional,
+        'allDepartures': allDepartures,
+        'nextBusInfo': nextBusInfo,
       };
     } else {
       String earliestTime = '08:00';
@@ -778,23 +936,48 @@ class _RuteTersediaCard extends StatelessWidget {
         'nextDeparture': null,
         'nextDepartureFormatted': '$formattedTime WIB',
         'notice': notice,
-        'tarif': tarif,
+        'tarif': nextTarif,
         'hari': hariOperasional,
+        'allDepartures': allDepartures,
+        'nextBusInfo': nextBusInfo,
       };
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isEkonomi = rute.nama.toLowerCase().contains('ekonomi') || rute.id % 2 == 1;
-    final serviceLabel = isEkonomi ? 'Ekonomi' : 'Reguler';
-    final badgeColor = isEkonomi ? const Color(0xFF374151) : AppColors.primary;
-    final durationText = isEkonomi ? '~35 mnt' : '~25 mnt';
-    final duration = isEkonomi ? 35 : 25;
-
     final info = _getScheduleInfo();
     final hasDepartures = info['hasDeparturesToday'] as bool;
     final isPureMandiri = (rute.id == 0);
+    final nextBusInfo = info['nextBusInfo'] as Map<String, dynamic>? ?? {};
+
+    // Real data from database
+    final poName = nextBusInfo['poName'] as String? ?? rute.kode;
+    final busType = nextBusInfo['busType'] as String? ?? 'ekonomi';
+    final busName = nextBusInfo['busName'] as String?;
+    final platNomor = nextBusInfo['platNomor'] as String?;
+    final tarif = info['tarif'] as int?;
+    final hariOps = info['hari'] as String? ?? '';
+    
+    // Determine type label and colors from actual bus data
+    final String serviceLabel;
+    final Color badgeColor;
+    switch (busType.toLowerCase()) {
+      case 'eksekutif':
+        serviceLabel = 'Eksekutif';
+        badgeColor = const Color(0xFF7C3AED); // Purple
+        break;
+      case 'bisnis':
+        serviceLabel = 'Bisnis';
+        badgeColor = const Color(0xFF0369A1); // Teal
+        break;
+      default:
+        serviceLabel = 'Ekonomi';
+        badgeColor = const Color(0xFF374151); // Dark grey
+    }
+
+    final duration = rute.estimasiMenit ?? 30;
+    final durationText = '~$duration mnt';
 
     String formatTime(DateTime dt) {
       final h = dt.hour.toString().padLeft(2, '0');
@@ -929,15 +1112,16 @@ class _RuteTersediaCard extends StatelessWidget {
                   runSpacing: 6,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    // PO Bus name badge
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: badgeColor,
+                        color: AppColors.primary,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text(
-                        'Trans Jatim',
-                        style: TextStyle(
+                      child: Text(
+                        poName,
+                        style: const TextStyle(
                           fontFamily: 'PlusJakartaSans',
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
@@ -945,18 +1129,19 @@ class _RuteTersediaCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    // Bus type badge
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEAF1FF),
+                        color: badgeColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         serviceLabel,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'PlusJakartaSans',
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF1D4ED8),
+                          color: badgeColor,
                           fontSize: 11,
                         ),
                       ),
@@ -1000,9 +1185,75 @@ class _RuteTersediaCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+
+          // Bus info + tarif + operational days row
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFF3F4F6)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.directions_bus, size: 16, color: Color(0xFF6B7280)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (busName != null || platNomor != null)
+                        Text(
+                          [busName, if (platNomor != null) '• $platNomor'].whereType<String>().join(' '),
+                          style: const TextStyle(
+                            fontFamily: 'DMSans',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF374151),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_today, size: 10, color: Color(0xFF9CA3AF)),
+                          const SizedBox(width: 4),
+                          Text(
+                            hariOps,
+                            style: const TextStyle(
+                              fontFamily: 'DMSans',
+                              fontSize: 10,
+                              color: Color(0xFF9CA3AF),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (tarif != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Rp ${_formatRupiah(tarif)}',
+                      style: const TextStyle(
+                        fontFamily: 'DMSans',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF059669),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
-
-
 
           // Warning notice banner if no departures left today
           if (!hasDepartures)
@@ -1117,7 +1368,91 @@ class _RuteTersediaCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
+          // Jadwal Keberangkatan Hari Ini
+          if ((info['allDepartures'] as List?)?.isNotEmpty == true) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF9FAFB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.schedule_rounded, size: 14, color: Color(0xFF6B7280)),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Jadwal Keberangkatan Hari Ini',
+                        style: TextStyle(
+                          fontFamily: 'DMSans',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: (info['allDepartures'] as List).map((dep) {
+                      final isNext = dep['isNext'] as bool;
+                      final isPast = dep['isPast'] as bool;
+                      final depPoName = dep['poName'] as String?;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: isNext
+                              ? AppColors.primary
+                              : (isPast ? const Color(0xFFF3F4F6) : const Color(0xFFEAF1FF)),
+                          borderRadius: BorderRadius.circular(8),
+                          border: isNext ? null : Border.all(color: isPast ? const Color(0xFFE5E7EB) : const Color(0xFFBFDBFE)),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              dep['time'] as String,
+                              style: TextStyle(
+                                fontFamily: 'DMSans',
+                                fontSize: 11,
+                                fontWeight: isNext ? FontWeight.bold : FontWeight.w500,
+                                color: isNext
+                                    ? Colors.white
+                                    : (isPast ? const Color(0xFF9CA3AF) : const Color(0xFF1D4ED8)),
+                                decoration: isPast ? TextDecoration.lineThrough : null,
+                              ),
+                            ),
+                            if (depPoName != null)
+                              Text(
+                                depPoName,
+                                style: TextStyle(
+                                  fontFamily: 'DMSans',
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w500,
+                                  color: isNext
+                                      ? Colors.white.withValues(alpha: 0.8)
+                                      : (isPast ? const Color(0xFFBFC5CF) : const Color(0xFF6B7280)),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ] else
+            const SizedBox(height: 20),
           
           // Mulai Navigasi Button
           SizedBox(

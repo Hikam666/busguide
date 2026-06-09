@@ -1,64 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../core/theme/app_colors.dart';
-
-// In-memory Notification Model
-class AppNotification {
-  final int id;
-  final String title;
-  final String message;
-  final String type; // 'wisata' | 'perjalanan' | 'po' | 'jadwal'
-  final String timeAgo;
-  bool isRead;
-
-  AppNotification({
-    required this.id,
-    required this.title,
-    required this.message,
-    required this.type,
-    required this.timeAgo,
-    this.isRead = false,
-  });
-}
+import '../controllers/notifikasi_controller.dart';
+import '../models/notifikasi.dart';
 
 // Global ValueNotifier to track unread notifications
-final ValueNotifier<bool> hasUnreadNotifications = ValueNotifier(true);
-
-// Static list of session notifications
-final List<AppNotification> appNotifications = [
-  AppNotification(
-    id: 1,
-    title: 'Destinasi Populer Baru!',
-    message: 'Malang Night Paradise kini tersedia di direktori wisata. Jelajahi keindahannya sekarang!',
-    type: 'wisata',
-    timeAgo: '1 jam yang lalu',
-  ),
-  AppNotification(
-    id: 2,
-    title: 'Perjalanan Selesai!',
-    message: 'Perjalanan Anda TR-000059 telah selesai direkam dengan durasi 12 menit.',
-    type: 'perjalanan',
-    timeAgo: '3 jam yang lalu',
-  ),
-  AppNotification(
-    id: 3,
-    title: 'Armada Baru!',
-    message: 'PO Menggala bergabung dengan rute Malang - Surabaya. Nikmati perjalanan dengan PO favorit Anda.',
-    type: 'po',
-    timeAgo: '1 hari yang lalu',
-  ),
-  AppNotification(
-    id: 4,
-    title: 'Penyesuaian Jadwal!',
-    message: 'Rute AL (Terminal Arjosari - Landungsari) mengalami penyesuaian waktu keberangkatan di jam malam.',
-    type: 'jadwal',
-    timeAgo: '2 hari yang lalu',
-  ),
-];
-
-// Helper function to update the global unread badge
-void updateUnreadStatus() {
-  hasUnreadNotifications.value = appNotifications.any((n) => !n.isRead);
-}
+final ValueNotifier<bool> hasUnreadNotifications = ValueNotifier(false);
 
 // Shows the notification panel
 void showNotificationBottomSheet(BuildContext context) {
@@ -78,13 +25,16 @@ class NotificationSheetWidget extends StatefulWidget {
 }
 
 class _NotificationSheetWidgetState extends State<NotificationSheetWidget> {
-  void _markAllAsRead() {
-    setState(() {
-      for (var notification in appNotifications) {
-        notification.isRead = true;
-      }
-      updateUnreadStatus();
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<NotifikasiController>().fetchNotifikasi();
     });
+  }
+
+  void _markAllAsRead() {
+    context.read<NotifikasiController>().tandaiSemuaDibaca();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Semua notifikasi ditandai sebagai dibaca'),
@@ -93,21 +43,21 @@ class _NotificationSheetWidgetState extends State<NotificationSheetWidget> {
     );
   }
 
-  void _toggleRead(AppNotification notification) {
-    setState(() {
-      notification.isRead = true;
-      updateUnreadStatus();
-    });
+  void _toggleRead(Notifikasi notification) {
+    context.read<NotifikasiController>().tandaiDibaca(notification.id);
   }
 
   IconData _getIcon(String type) {
-    switch (type) {
+    switch (type.toLowerCase()) {
       case 'wisata':
+      case 'info':
         return Icons.explore_rounded;
       case 'perjalanan':
+      case 'selesai':
         return Icons.directions_bus_rounded;
       case 'po':
-        return Icons.business_rounded;
+      case 'alarm':
+        return Icons.notifications_active_rounded;
       case 'jadwal':
         return Icons.calendar_month_rounded;
       default:
@@ -116,12 +66,15 @@ class _NotificationSheetWidgetState extends State<NotificationSheetWidget> {
   }
 
   Color _getColor(String type) {
-    switch (type) {
+    switch (type.toLowerCase()) {
       case 'wisata':
+      case 'info':
         return const Color(0xFF0284C7); // Light Blue
       case 'perjalanan':
+      case 'selesai':
         return const Color(0xFF059669); // Emerald Green
       case 'po':
+      case 'alarm':
         return const Color(0xFFD97706); // Amber/Orange
       case 'jadwal':
         return const Color(0xFF7E22CE); // Purple
@@ -132,6 +85,41 @@ class _NotificationSheetWidgetState extends State<NotificationSheetWidget> {
 
   Color _getBgColor(String type) {
     return _getColor(type).withOpacity(0.08);
+  }
+
+  String _getDefaultTitle(String type) {
+    switch (type.toLowerCase()) {
+      case 'wisata':
+      case 'info':
+        return 'Destinasi Populer Baru!';
+      case 'perjalanan':
+      case 'selesai':
+        return 'Perjalanan Selesai!';
+      case 'po':
+      case 'alarm':
+        return 'Armada Baru!';
+      case 'jadwal':
+        return 'Penyesuaian Jadwal!';
+      default:
+        return 'Notifikasi Baru';
+    }
+  }
+
+  String _getTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inSeconds < 60) {
+      return 'Baru saja';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} menit yang lalu';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} jam yang lalu';
+    } else if (difference.inDays < 30) {
+      return '${difference.inDays} hari yang lalu';
+    } else {
+      return '${(difference.inDays / 30).floor()} bulan yang lalu';
+    }
   }
 
   @override
@@ -194,103 +182,136 @@ class _NotificationSheetWidgetState extends State<NotificationSheetWidget> {
 
           // Scrollable Notifications List
           Expanded(
-            child: ListView.separated(
-              itemCount: appNotifications.length,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (ctx, idx) {
-                final item = appNotifications[idx];
-                final icon = _getIcon(item.type);
-                final color = _getColor(item.type);
-                final bg = _getBgColor(item.type);
-
-                return GestureDetector(
-                  onTap: () => _toggleRead(item),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: item.isRead ? Colors.white : const Color(0xFFF9FAFC),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: item.isRead ? const Color(0xFFF3F4F6) : const Color(0xFFE0E7FF),
-                        width: 1,
-                      ),
-                      boxShadow: item.isRead
-                          ? []
-                          : [
-                              BoxShadow(
-                                color: const Color(0xFF6366F1).withOpacity(0.02),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              )
-                            ],
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            child: Consumer<NotifikasiController>(
+              builder: (context, ctrl, _) {
+                if (ctrl.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (ctrl.notifikasiList.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Icon circle
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: bg,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(icon, color: color, size: 20),
+                        Icon(
+                          Icons.notifications_off_outlined,
+                          size: 48,
+                          color: Color(0xFF9CA3AF),
                         ),
-                        const SizedBox(width: 12),
-
-                        // Title, text, time
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    item.title,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: item.isRead ? FontWeight.w600 : FontWeight.w800,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                  if (!item.isRead)
-                                    Container(
-                                      width: 6,
-                                      height: 6,
-                                      decoration: const BoxDecoration(
-                                        color: Colors.red,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                item.message,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: item.isRead ? const Color(0xFF6B7280) : const Color(0xFF374151),
-                                  height: 1.3,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                item.timeAgo,
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: Color(0xFF9CA3AF),
-                                ),
-                              ),
-                            ],
+                        SizedBox(height: 12),
+                        Text(
+                          'Tidak ada notifikasi',
+                          style: TextStyle(
+                            fontFamily: 'DMSans',
+                            fontSize: 14,
+                            color: Color(0xFF9CA3AF),
                           ),
                         ),
                       ],
                     ),
-                  ),
+                  );
+                }
+
+                return ListView.separated(
+                  itemCount: ctrl.notifikasiList.length,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (ctx, idx) {
+                    final item = ctrl.notifikasiList[idx];
+                    final icon = _getIcon(item.tipe);
+                    final color = _getColor(item.tipe);
+                    final bg = _getBgColor(item.tipe);
+                    final title = item.judul ?? _getDefaultTitle(item.tipe);
+                    final timeAgoText = _getTimeAgo(item.tanggalKirim);
+
+                    return GestureDetector(
+                      onTap: () => _toggleRead(item),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: item.statusBaca ? Colors.white : const Color(0xFFF9FAFC),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: item.statusBaca ? const Color(0xFFF3F4F6) : const Color(0xFFE0E7FF),
+                            width: 1,
+                          ),
+                          boxShadow: item.statusBaca
+                              ? []
+                              : [
+                                  BoxShadow(
+                                    color: const Color(0xFF6366F1).withOpacity(0.02),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  )
+                                ],
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Icon circle
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: bg,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(icon, color: color, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+
+                            // Title, text, time
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        title,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: item.statusBaca ? FontWeight.w600 : FontWeight.w800,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                      if (!item.statusBaca)
+                                        Container(
+                                          width: 6,
+                                          height: 6,
+                                          decoration: const BoxDecoration(
+                                            color: Colors.red,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    item.pesan,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: item.statusBaca ? const Color(0xFF6B7280) : const Color(0xFF374151),
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    timeAgoText,
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: Color(0xFF9CA3AF),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),

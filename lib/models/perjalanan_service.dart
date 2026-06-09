@@ -22,7 +22,7 @@ class PerjalananService {
           .from('perjalanan')
           .update({
             'status': 'dibatalkan',
-            'waktu_selesai': DateTime.now().toIso8601String(),
+            'waktu_selesai': DateTime.now().toUtc().toIso8601String(),
             'alarm_aktif': false,
           })
           .eq('id_pengguna', userId)
@@ -43,7 +43,7 @@ class PerjalananService {
         })
         .select('''
           id, status, waktu_mulai, waktu_selesai, alarm_aktif,
-          rute(id, kode, nama),
+          rute(id, kode, nama, estimasi_menit),
           halte_asal:halte_asal(id, nama, tipe, alamat, latitude, longitude),
           halte_tujuan:halte_tujuan(id, nama, tipe, alamat, latitude, longitude)
         ''')
@@ -64,7 +64,7 @@ class PerjalananService {
         .from('perjalanan')
         .select('''
           id, status, waktu_mulai, waktu_selesai, alarm_aktif,
-          rute(id, kode, nama),
+          rute(id, kode, nama, estimasi_menit),
           halte_asal:halte_asal(id, nama, tipe, alamat, latitude, longitude),
           halte_tujuan:halte_tujuan(id, nama, tipe, alamat, latitude, longitude)
         ''')
@@ -87,7 +87,7 @@ class PerjalananService {
       return;
     }
 
-    final waktuSelesai = DateTime.now().toIso8601String();
+    final waktuSelesai = DateTime.now().toUtc().toIso8601String();
     
     // Update status perjalanan
     await _supabase.from('perjalanan').update({
@@ -120,7 +120,7 @@ class PerjalananService {
 
     await _supabase.from('perjalanan').update({
       'status': 'dibatalkan',
-      'waktu_selesai': DateTime.now().toIso8601String(),
+      'waktu_selesai': DateTime.now().toUtc().toIso8601String(),
       'alarm_aktif': false,
     }).eq('id', idPerjalanan);
   }
@@ -147,7 +147,7 @@ class PerjalananService {
         .from('perjalanan')
         .select('''
           id, status, waktu_mulai, waktu_selesai, alarm_aktif,
-          rute:rute!perjalanan_id_rute_fkey(id, kode, nama),
+          rute:rute!perjalanan_id_rute_fkey(id, kode, nama, estimasi_menit),
           halte_asal:halte_asal(id, nama, tipe, alamat, latitude, longitude),
           halte_tujuan:halte_tujuan(id, nama, tipe, alamat, latitude, longitude),
           riwayat_perjalanan(id, id_perjalanan, durasi_menit, estimasi_biaya, catatan)
@@ -170,7 +170,7 @@ class PerjalananService {
           id, status, waktu_mulai, waktu_selesai, alarm_aktif,
           halte_asal:halte_asal(id, nama, tipe, alamat, latitude, longitude),
           halte_tujuan:halte_tujuan(id, nama, tipe, alamat, latitude, longitude),
-          rute:rute!perjalanan_id_rute_fkey(id, kode, nama),
+          rute:rute!perjalanan_id_rute_fkey(id, kode, nama, estimasi_menit),
           riwayat_perjalanan(id, id_perjalanan, durasi_menit, estimasi_biaya, catatan)
         ''').eq('id_pengguna', userId);
 

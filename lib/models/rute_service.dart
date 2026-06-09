@@ -5,10 +5,10 @@ import 'rute.dart';
 class RuteService {
   final _supabase = Supabase.instance.client;
 
-  // Ambil semua rute
+  // Ambal semua rute
   Future<List<Rute>> getSemuaRute() async {
     final data = await _supabase.from('rute').select('''
-          id, kode, nama,
+          id, kode, nama, estimasi_menit,
           terminal_awal:halte!rute_terminal_awal_fkey(id, nama, tipe, alamat, latitude, longitude),
           terminal_akhir:halte!rute_terminal_akhir_fkey(id, nama, tipe, alamat, latitude, longitude)
         ''').order('kode');
@@ -20,7 +20,7 @@ class RuteService {
   // Ambil detail satu rute
   Future<Rute> getDetailRute(int idRute) async {
     final data = await _supabase.from('rute').select('''
-          id, kode, nama,
+          id, kode, nama, estimasi_menit,
           terminal_awal:halte!rute_terminal_awal_fkey(id, nama, tipe, alamat, latitude, longitude),
           terminal_akhir:halte!rute_terminal_akhir_fkey(id, nama, tipe, alamat, latitude, longitude)
         ''').eq('id', idRute).single();
@@ -67,7 +67,7 @@ class RuteService {
 
     // Ambil detail rute yang cocok
     final data = await _supabase.from('rute').select('''
-          id, kode, nama,
+          id, kode, nama, estimasi_menit,
           terminal_awal:halte!rute_terminal_awal_fkey(id, nama, tipe, alamat, latitude, longitude),
           terminal_akhir:halte!rute_terminal_akhir_fkey(id, nama, tipe, alamat, latitude, longitude)
         ''').inFilter('id', idRuteCocok);
@@ -77,12 +77,15 @@ class RuteService {
         .toList();
   }
 
-  // Ambil jadwal keberangkatan untuk rute tertentu
+  // Ambil jadwal keberangkatan untuk rute tertentu (with bus + PO info)
   Future<List<Map<String, dynamic>>> getJadwalRute(int idRute) async {
     try {
       final data = await _supabase
           .from('jadwal')
-          .select('id, id_rute, id_bus, hari, jam_berangkat, tarif')
+          .select('''
+            id, id_rute, id_bus, hari, jam_berangkat, tarif, estimasi_menit,
+            bus:id_bus(id, nomor_polisi, tipe, nama_bus, po_bus:id_po(id, nama))
+          ''')
           .eq('id_rute', idRute);
       return List<Map<String, dynamic>>.from(data as List);
     } catch (e) {

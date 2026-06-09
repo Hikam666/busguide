@@ -7,6 +7,7 @@ import 'package:busguide/core/theme/app_colors.dart';
 import 'package:busguide/controllers/home_controller.dart';
 import 'package:busguide/controllers/navigasi_controller.dart';
 import 'package:busguide/controllers/navigasi_aktif_controller.dart';
+import 'package:busguide/controllers/notifikasi_controller.dart';
 import 'package:busguide/models/perjalanan.dart';
 import 'package:busguide/models/wisata.dart';
 import '../templates/notification_sheet.dart';
@@ -46,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<HomeController>().loadData();
+      context.read<NotifikasiController>().fetchNotifikasi();
     });
   }
 

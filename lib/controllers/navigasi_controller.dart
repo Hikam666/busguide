@@ -34,6 +34,8 @@ class NavigasiController extends ChangeNotifier {
   // Data Peta & GPS
   LatLng _lokasiSaatIni = const LatLng(-7.9797, 112.6304); // Default Malang
   List<LatLng> _titikPolyline = [];
+  List<LatLng> _firstPartPolyline = [];
+  List<LatLng> _secondPartPolyline = [];
   List<RuteHalte> _halteRute = [];
 
   // ─── GETTERS ─────────────────────────────────────────────
@@ -56,6 +58,8 @@ class NavigasiController extends ChangeNotifier {
   Map<int, List<Map<String, dynamic>>> get jadwalRuteMap => _jadwalRuteMap;
   LatLng get lokasiSaatIni => _lokasiSaatIni;
   List<LatLng> get titikPolyline => _titikPolyline;
+  List<LatLng> get firstPartPolyline => _firstPartPolyline;
+  List<LatLng> get secondPartPolyline => _secondPartPolyline;
   List<RuteHalte> get halteRute => _halteRute;
 
   // ─── INIT DATA ────────────────────────────────────────────
@@ -425,8 +429,32 @@ class NavigasiController extends ChangeNotifier {
       // 2. Dapatkan bagian 2: dari _halteAsal ke _halteTujuan (Jalur Bus)
       List<LatLng> secondPart = [];
       if (idRute > 0) {
-        // Coba dapatkan rute OSRM melewati semua halte rute terlebih dahulu agar mengikuti jalan
-        if (_halteRute.length >= 2) {
+        // Coba dapatkan rute dari database titik_rute terlebih dahulu
+        final titikDB = await _ruteService.getTitikRute(idRute);
+        if (titikDB.length >= 2) {
+          final List<LatLng> rawPoints =
+              titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
+          final List<LatLng> slicedDbPoints;
+          if (_halteAsal != null && _halteTujuan != null && _halteAsal!.id != 0) {
+            slicedDbPoints = _sliceRouteCoordinates(rawPoints, _halteAsal!, _halteTujuan!);
+          } else {
+            slicedDbPoints = PolylineUtils.simplify(rawPoints, tolerance: 0.00015);
+          }
+
+          if (slicedDbPoints.length >= 2) {
+            // Haluskan koordinat database mengikuti jalan menggunakan OSRM API
+            final waypoints = _sampleWaypoints(slicedDbPoints, maxPoints: 25);
+            final routeData = await _osrmRoutesService.getRoute(waypoints);
+            if (routeData != null && routeData.polyline.isNotEmpty) {
+              secondPart = routeData.polyline;
+            } else {
+              secondPart = slicedDbPoints; // Fallback ke koordinat database mentah
+            }
+          }
+        }
+
+        // Fallback: OSRM API rute jalan biasa melewati semua halte rute jika database titik_rute kosong
+        if (secondPart.isEmpty && _halteRute.length >= 2) {
           final waypoints = _halteRute
               .where((rh) => rh.halte.id != 0 && rh.halte.id != -1) // abaikan lokasi saat ini/custom jika ada
               .map((rh) => LatLng(rh.halte.latitude, rh.halte.longitude))
@@ -436,20 +464,6 @@ class NavigasiController extends ChangeNotifier {
             final routeData = await _osrmRoutesService.getRoute(waypoints);
             if (routeData != null && routeData.polyline.isNotEmpty) {
               secondPart = routeData.polyline;
-            }
-          }
-        }
-
-        // Fallback: Database koordinat titik_rute dari database Supabase jika OSRM gagal
-        if (secondPart.isEmpty) {
-          final titikDB = await _ruteService.getTitikRute(idRute);
-          if (titikDB.length >= 2) {
-            final List<LatLng> rawPoints =
-                titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
-            if (_halteAsal != null && _halteTujuan != null && _halteAsal!.id != 0) {
-              secondPart = _sliceRouteCoordinates(rawPoints, _halteAsal!, _halteTujuan!);
-            } else {
-              secondPart = PolylineUtils.simplify(rawPoints, tolerance: 0.00015);
             }
           }
         }
@@ -473,12 +487,10 @@ class NavigasiController extends ChangeNotifier {
         }
       }
 
-      // 3. Gabungkan bagian
-      if (needsFirstPart) {
-        _titikPolyline = [...firstPart, ...secondPart];
-      } else {
-        _titikPolyline = secondPart;
-      }
+      // 3. Simpan dan Gabungkan bagian
+      _firstPartPolyline = needsFirstPart ? firstPart : [];
+      _secondPartPolyline = secondPart;
+      _titikPolyline = needsFirstPart ? [...firstPart, ...secondPart] : secondPart;
     } catch (e) {
       debugPrint('loadPolyline error: $e');
     } finally {
@@ -532,11 +544,28 @@ class NavigasiController extends ChangeNotifier {
 
   // ─── RESET STATE ──────────────────────────────────────────
   void resetState() {
+    _firstPartPolyline = [];
+    _secondPartPolyline = [];
     _titikPolyline = [];
     _halteRute = [];
     _ruteTersedia = [];
     _jadwalRuteMap = {};
     _adaPerjalananAktif = false;
     notifyListeners();
+  }
+
+  List<LatLng> _sampleWaypoints(List<LatLng> points, {int maxPoints = 25}) {
+    if (points.length <= maxPoints) return points;
+    final List<LatLng> sampled = [];
+    sampled.add(points.first);
+    
+    final double step = (points.length - 1) / (maxPoints - 1);
+    for (int i = 1; i < maxPoints - 1; i++) {
+      final int index = (i * step).round();
+      sampled.add(points[index]);
+    }
+    
+    sampled.add(points.last);
+    return sampled;
   }
 }

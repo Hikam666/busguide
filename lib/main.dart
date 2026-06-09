@@ -31,6 +31,7 @@ import 'package:busguide/controllers/profil_controller.dart';
 import 'package:busguide/controllers/riwayat_controller.dart';
 import 'package:busguide/controllers/detail_wisata_controller.dart';
 import 'package:busguide/controllers/detail_po_bus_controller.dart';
+import 'package:busguide/controllers/notifikasi_controller.dart';
 
 // Placeholder Admin Dashboard
 class AdminDashboardPlaceholder extends StatelessWidget {
@@ -65,6 +66,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => RiwayatController()),
         ChangeNotifierProvider(create: (_) => DetailWisataController()),
         ChangeNotifierProvider(create: (_) => DetailPoBusController()),
+        ChangeNotifierProvider(create: (_) => NotifikasiController()),
       ],
       child: const MyApp(),
     ),
