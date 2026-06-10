@@ -17,6 +17,7 @@ class _RiwayatPerjalananScreenState extends State<RiwayatPerjalananScreen> {
   @override
   void initState() {
     super.initState();
+    //Ambil data riwayat ketika halaman pertama kali dibuka
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<RiwayatController>().loadRiwayat();
     });
@@ -138,13 +139,14 @@ class _FilterChip extends StatelessWidget {
 }
 
 // ── Widget: Trip Card ───────────────────────────────────────
+//Kartu yg menampilkan informasi satu riwayat
 class _TripCard extends StatelessWidget {
   const _TripCard({required this.perjalanan});
   final Perjalanan perjalanan;
 
   bool get _isCancelled => perjalanan.status == 'dibatalkan';
 
-  Color get _badgeBg {
+  Color get _badgeBg { //Tentukan warna latar berdasarkan status perjalanan
     switch (perjalanan.status) {
       case 'selesai': return AppColors.primary;
       case 'dibatalkan': return const Color(0xFFFEE2E2);
@@ -153,7 +155,7 @@ class _TripCard extends StatelessWidget {
     }
   }
 
-  Color get _badgeTextColor {
+  Color get _badgeTextColor { 
     switch (perjalanan.status) {
       case 'selesai': return Colors.white;
       case 'dibatalkan': return const Color(0xFFEF4444);

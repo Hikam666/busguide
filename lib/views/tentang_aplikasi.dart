@@ -7,10 +7,10 @@ class TentangAplikasiScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return Scaffold( //Struktur utama halaman
       backgroundColor: AppColors.background,
       appBar: const AppHeader(title: 'Tentang Aplikasi', showBack: true),
-      body: SingleChildScrollView(
+      body: SingleChildScrollView( //Isi halaman bisa discroll
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [

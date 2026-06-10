@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:busguide/models/auth_service.dart';
 import 'package:busguide/models/user_profile.dart';
 
+//Penghubung UI dan model
 class ProfilController extends ChangeNotifier {
   final _authService = AuthService();
 
@@ -26,6 +27,7 @@ class ProfilController extends ChangeNotifier {
   Future<void> loadProfile() async {
     _isLoading = true;
     _error = null;
+    //Memberitahu widget untuk rebuild
     notifyListeners();
 
     try {
@@ -35,6 +37,7 @@ class ProfilController extends ChangeNotifier {
       _error = 'Gagal memuat profil. Coba lagi.';
     } finally {
       _isLoading = false;
+      //Memperbarui UI dgn data baru
       notifyListeners();
     }
   }
@@ -56,6 +59,7 @@ class ProfilController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      //Mengirim data profil yang baru ke backend
       await _authService.updateProfile(
         nama: newNama,
         noHp: newNoHp,

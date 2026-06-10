@@ -9,7 +9,7 @@ class UserProfile {
   final String statusAkun;
   final DateTime? lastLogin;
 
-  const UserProfile({
+  const UserProfile({ //Data profil tersedia, konversi objek dart
     required this.id,
     required this.nama,
     required this.email,
@@ -21,18 +21,20 @@ class UserProfile {
     this.lastLogin,
   });
 
+  //Ubah data map ke objek userprofile
   factory UserProfile.fromMap(Map<String, dynamic> map) => UserProfile(
         id: map['id'] as String,
         nama: map['nama'] as String,
         email: map['email'] as String,
-        role: map['role'] as String? ?? 'pengguna',
+        role: map['role'] as String? ?? 'pengguna', //nilai default
         avatarUrl: map['avatar_url'] as String?,
         noHp: map['no_hp'] as String?,
         alamat: map['alamat'] as String?,
         statusAkun: map['status_akun'] as String? ?? 'aktif',
+        //Ubah data tanggal string ke objek datetime lokal
         lastLogin: map['last_login'] != null ? DateTime.parse(map['last_login'] as String).toLocal() : null,
       );
-
+  
   bool get isAdmin => role == 'admin';
 
   /// Inisial dari nama: 'Muhammad Hikam' -> 'MH'
@@ -45,6 +47,7 @@ class UserProfile {
     return nama[0].toUpperCase();
   }
 
+  //Debugging atau logging
   @override
   String toString() => 'UserProfile(id: $id, nama: $nama, role: $role)';
 }

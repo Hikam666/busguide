@@ -6,6 +6,7 @@ import '../core/theme/app_colors.dart';
 import '../controllers/profil_controller.dart';
 import '../templates/header.dart';
 
+//Data profil diambil,diperbarui dri ProfilController
 class EditProfilScreen extends StatefulWidget {
   const EditProfilScreen({super.key});
 
@@ -19,8 +20,9 @@ class _EditProfilScreenState extends State<EditProfilScreen> {
   final _alamatController = TextEditingController();
 
   @override
-  void initState() {
+  void initState() { //Data awal form perlu diisi saat halaman pertama dibuka
     super.initState();
+    //Ambil data profil, isi form otomatis
     final profilCtrl = context.read<ProfilController>();
     _namaController.text = profilCtrl.nama;
     _noHpController.text = profilCtrl.noHp;
@@ -28,14 +30,14 @@ class _EditProfilScreenState extends State<EditProfilScreen> {
   }
 
   @override
-  void dispose() {
+  void dispose() { //Menggunakan resource memori yg perlu dibersihkan
     _namaController.dispose();
     _noHpController.dispose();
     _alamatController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickAndUploadImage() async {
+  Future<void> _pickAndUploadImage() async { //Pilih gambar dri galeri,unggah
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(
       source: ImageSource.gallery,
@@ -44,10 +46,10 @@ class _EditProfilScreenState extends State<EditProfilScreen> {
     );
 
     if (pickedFile != null) {
-      final file = File(pickedFile.path);
+      final file = File(pickedFile.path); //Ubah path gambar ke objek file
       if (!mounted) return;
       final profilCtrl = context.read<ProfilController>();
-      await profilCtrl.uploadAvatar(file);
+      await profilCtrl.uploadAvatar(file); //Kirim gambar ke ProfilController utk unggah ke backend
       
       if (mounted) {
         final error = profilCtrl.error;
@@ -64,7 +66,7 @@ class _EditProfilScreenState extends State<EditProfilScreen> {
     }
   }
 
-  Future<void> _simpan() async {
+  Future<void> _simpan() async { //Simpan data profil ke server
     final nama = _namaController.text.trim();
     final noHp = _noHpController.text.trim();
     final alamat = _alamatController.text.trim();
@@ -103,7 +105,7 @@ class _EditProfilScreenState extends State<EditProfilScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: const AppHeader(title: 'Edit Profil', showBack: true, showNotification: false),
-      body: Consumer<ProfilController>(
+      body: Consumer<ProfilController>( //Perubahan pada Profilcontroller
         builder: (context, ctrl, _) {
           return Padding(
             padding: const EdgeInsets.all(24.0),

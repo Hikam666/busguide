@@ -20,12 +20,13 @@ class _ProfilScreenState extends State<ProfilScreen> {
   @override
   void initState() {
     super.initState();
+    //Proses ambil data profil setelah widget selesai dibangun
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ProfilController>().loadProfile();
     });
   }
 
-  Future<void> _handleLogout(BuildContext ctx) async {
+  Future<void> _handleLogout(BuildContext ctx) async { //Proses logout pengguna
     final confirm = await showDialog<bool>(
       context: ctx,
       builder: (dialogCtx) => AlertDialog(
@@ -47,8 +48,9 @@ class _ProfilScreenState extends State<ProfilScreen> {
     );
 
     if ((confirm ?? false) && mounted) {
-      await ctx.read<ProfilController>().logout();
+      await ctx.read<ProfilController>().logout(); //Hapus sesi login pengguna
       if (mounted) {
+        //Hapus seluruh halaman, kembali login
         Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
       }
     }
@@ -72,7 +74,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                     Stack(
                       alignment: Alignment.bottomRight,
                       children: [
-                        CircleAvatar(
+                        CircleAvatar( //Menampilkan foto profil pengguna
                           radius: 48,
                           backgroundColor: AppColors.primary,
                           backgroundImage: ctrl.profile?.avatarUrl != null
@@ -124,9 +126,9 @@ class _ProfilScreenState extends State<ProfilScreen> {
                     const SizedBox(height: 14),
 
                     // ── Tombol Edit Profil ───────────────────
-                    OutlinedButton(
+                    OutlinedButton( //Buka halaman edit profil
                       onPressed: () {
-                        Navigator.push(
+                        Navigator.push( //Pindah ke halaman edit profil
                           context,
                           MaterialPageRoute(
                               builder: (_) => const EditProfilScreen()),
@@ -169,7 +171,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         child: Column(
                           children: [
                             // Riwayat Perjalanan
-                            _MenuTile(
+                            _MenuTile( //Menu lihat seluruh riwayat
                               icon: Icons.history_rounded,
                               label: 'Riwayat Perjalanan',
                               showArrow: true,
@@ -192,12 +194,14 @@ class _ProfilScreenState extends State<ProfilScreen> {
                               label: 'Perizinan Aplikasi',
                               onTap: () async {
                                 final currentContext = context;
+                                //Memeriksa, minta izin lokasi dan notifikasi
                                 LocationPermission locPerm =
                                     await Geolocator.checkPermission();
                                 if (locPerm == LocationPermission.denied) {
                                   locPerm =
                                       await Geolocator.requestPermission();
                                 }
+                                //Meminta izin notifikasi ke pengguna
                                 final notifGranted =
                                     await NotificationService.requestPermission();
 
@@ -398,6 +402,7 @@ class _Divider extends StatelessWidget {
 }
 
 // ── Widget Helper: Permission Chip ───────────────────────────
+//Jenis izin aplikasi
 class _PermissionChip extends StatelessWidget {
   const _PermissionChip({required this.icon, required this.label});
 
