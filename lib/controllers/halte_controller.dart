@@ -60,27 +60,31 @@ class HalteController extends ChangeNotifier {
 
   // ─── DAPATKAN LOKASI GPS ──────────────────────────────────
   Future<void> dapatkanLokasi() async {
-    _isLoadingLokasi = true;
+    _isLoadingLokasi = true; // Menyalakan indikator loading UI
     notifyListeners();
 
     try {
-      // Pengecekan hardware: Apakah sensor GPS HP hidup?
+         // BARIS 1: Mengecek apakah fitur/hardware GPS di HP dalam keadaan menyala (tidak di-disable dari status bar).
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) throw Exception('GPS mati');
 
       // Pengecekan software: Apakah BusGuide diizinkan membaca lokasi?
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
+          // BARIS 5: Tampilkan Pop-Up bawaan OS (Android/iOS) yang meminta izin: "Allow BusGuide to access your location?"
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
           throw Exception('Izin ditolak');
         }
       }
+          // BARIS 7: Jika pengguna sebelumnya pernah menekan "Deny & Don't ask again" (ditolak permanen).
+      // Sistem tidak bisa menampilkan pop-up lagi, pengguna harus mengubahnya manual via Pengaturan HP.
       if (permission == LocationPermission.deniedForever) {
         throw Exception('Izin ditolak permanen');
       }
 
-      // Ambil titik koordinat saat ini
+        // BARIS 8: Jika kode berhasil melewati semua blok if di atas, artinya IZIN DIBERIKAN.
+      // Ambil titik kordinat saat ini dengan akurasi tinggi (LocationAccuracy.high).
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
@@ -104,10 +108,13 @@ class HalteController extends ChangeNotifier {
 
   // ─── HITUNG HALTE TERDEKAT ────────────────────────────────
   void hitungHalteTerdekat() {
+     // Baris 1: Jika daftar master semua halte masih kosong (belum dimuat dari database), hentikan fungsi.
     if (_semuaHalte.isEmpty) return;
 
     // Perulangan map untuk menghitung metrik jarak ke setiap halte di kota
     final halteWithJarak = _semuaHalte.map((h) {
+       // Baris 3-8: Menghitung jarak lurus (haversine) dalam satuan meter menggunakan plugin Geolocator.
+      // Dihitung dari '_titikPusat' (bisa GPS atau titik pencarian) ke koordinat halte (h.latitude, h.longitude).
       final jarak = Geolocator.distanceBetween(
         _titikPusat.latitude,
         _titikPusat.longitude,

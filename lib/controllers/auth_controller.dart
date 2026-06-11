@@ -80,6 +80,8 @@ class AuthController extends ChangeNotifier {
     _setError(null);
 
     try {
+        // Memanggil fungsi loginGoogle di AuthService dengan parameter isRegister: true.
+      // Hal ini memberi tahu Service bahwa niat kita adalah "Mendaftar", bukan "Login".
       final result = await _authService.loginGoogle(isRegister: true);
       return result['role'] as String?;
     } catch (e) {
@@ -144,6 +146,7 @@ class AuthController extends ChangeNotifier {
 
   // ─── RESET PASSWORD ──────────────────────────────────────
   Future<bool> resetPassword(String email) async {
+    // Validasi 1: Pastikan email tidak kosong atau hanya berisi spasi
     if (email.trim().isEmpty) {
       _setError('Email tidak boleh kosong');
       return false;
@@ -170,11 +173,12 @@ class AuthController extends ChangeNotifier {
     required String otp,
     required String newPassword,
   }) async {
+    // Validasi 1: Pastikan satupun dari ketiga kolom ini tidak dibiarkan kosong
     if (email.trim().isEmpty || otp.trim().isEmpty || newPassword.trim().isEmpty) {
       _setError('Semua field wajib diisi');
       return false;
     }
-    
+     // Validasi 2: Standar keamanan Supabase, password minimal harus 6 huruf/angka
     if (newPassword.length < 6) {
       _setError('Password minimal 6 karakter');
       return false;
@@ -184,7 +188,7 @@ class AuthController extends ChangeNotifier {
     _setError(null);
 
     try {
-      // Tukar OTP dengan Sesi, lalu timpa password
+      // Panggil Service untuk menyerahkan OTP dan Sandi baru ke Supabase
       await _authService.verifyOtpAndResetPassword(
         email: email.trim(),
         otp: otp.trim(),
@@ -192,6 +196,7 @@ class AuthController extends ChangeNotifier {
       );
       return true;
     } catch (e) {
+       // Jika kode OTP kedaluwarsa atau salah ketik
       _setError(e.toString().replaceAll('Exception: ', ''));
       return false;
     } finally {

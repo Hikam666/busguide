@@ -136,6 +136,7 @@ class NavigasiController extends ChangeNotifier {
 
   // ─── CARI RUTE ────────────────────────────────────────────
   Future<String?> cariRute() async {
+    // Validasi 1: Cegah pencarian jika tujuan adalah "Lokasi Saat Ini"
     if (_halteAsal == null || _halteTujuan == null) {
       return 'Pilih lokasi asal dan tujuan terlebih dahulu';
     }

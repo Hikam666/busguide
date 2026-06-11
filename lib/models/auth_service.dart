@@ -15,12 +15,12 @@ class AuthService {
     required String password,
   }) async {
     try {
-      // Autentikasi email dan sandi ke Supabase Auth
+      // Meminta Supabase Auth untuk melakukan verifikasi email dan password.
       final response = await _supabase.auth.signInWithPassword(
         email: email,
         password: password,
       );
-
+      // Baris 2: Mengambil objek user dari hasil balikan Supabase.
       final user = response.user;
       if (user == null) throw Exception('Login gagal');
 
@@ -30,14 +30,16 @@ class AuthService {
           .select('id, nama, email, role, avatar_url, no_hp, alamat, status_akun, last_login')
           .eq('id', user.id)
           .single();
-
+      // Baris 10: Mengubah data JSON (Map) dari database menjadi objek class UserProfile.
       final profile = UserProfile.fromMap(profileData);
-
+      // Baris 11-15: Mengembalikan Map (Kamus) yang berisi data auth, profil, dan role (peran) pengguna.
       return {
         'user': user,
         'profile': profile,
         'role': profile.role,
       };
+    // Baris 16-20: Penanganan Error. AuthException untuk error spesifik Supabase (misal: password salah), 
+    // catch umum untuk error jaringan/database.
     } on AuthException catch (e) {
       throw Exception(e.message);
     } catch (e) {

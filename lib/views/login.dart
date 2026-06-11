@@ -435,6 +435,7 @@ class _BagianDaftar extends StatelessWidget {
         const Text('Belum punya akun? '),
         GestureDetector(
           onTap: () {
+             // Ketika diklik, layar saat ini (Login) dihancurkan dan diganti dengan rute '/register'
             Navigator.pushReplacementNamed(context, '/register');
           },
           child: const Text('Daftar sekarang', style: TextStyle(color: Color(0xFF0D6EFD), fontWeight: FontWeight.bold)),

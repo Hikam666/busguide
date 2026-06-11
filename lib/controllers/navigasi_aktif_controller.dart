@@ -140,6 +140,7 @@ class NavigasiAktifController extends ChangeNotifier {
           startHalt.latitude,
           startHalt.longitude,
         );
+         // Cek jarak awal. Jika user memaksa klik "Mulai" padahal lokasinya masih jauh (>100m) dari halte awal.
         if (distToAsal > 100) {
           NotificationService.showNotification(
             id: 99,

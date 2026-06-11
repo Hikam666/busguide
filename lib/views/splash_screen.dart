@@ -13,16 +13,16 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
+    with SingleTickerProviderStateMixin { // Mixin ini wajib untuk menjalankan animasi (vsync)
+  late AnimationController _controller; // Controller untuk mengatur durasi dan status animasi
+  late Animation<double> _fadeAnimation;  // Animasi untuk efek memudar (muncul perlahan)
+  late Animation<double> _scaleAnimation; // Animasi untuk efek membesar (zoom in)
 
-  final _authService = AuthService();
+  final _authService = AuthService();  // Membuat instance/objek dari AuthService
 
   @override
   void initState() {
-    super.initState();
+    super.initState(); // Memanggil initState bawaan Flutter
 
     // Membuat controller animasi dengan durasi 1.2 detik
     _controller = AnimationController(
@@ -34,7 +34,7 @@ class _SplashScreenState extends State<SplashScreen>
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
+        curve: const Interval(0.0, 0.6, curve: Curves.easeIn),  // Animasi dimainkan pada 60% waktu pertama
       ),
     );
 
@@ -54,10 +54,13 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _cekPerizinanDanSession() async {
     // 1. Cek izin lokasi GPS saat ini
+      // BARIS 1: Meminta plugin Geolocator untuk mengecek status izin GPS saat ini di HP pengguna.
+    // Hasilnya bisa berupa: always (selalu), whileInUse (saat aplikasi dipakai), denied (ditolak), dll.
     LocationPermission permission = await Geolocator.checkPermission();
     // Mencegah error jika widget keburu ditutup sebelum proses selesai
     if (!mounted) return;
-
+    // BARIS 3: Cek apakah izin "ditolak" (belum pernah ditanya/ditolak sekali) 
+    // ATAU "ditolak permanen" (pengguna menceklis 'jangan tanya lagi').
     if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
       // Jika belum ada izin -> paksa ke halaman perizinan secara permanen
       Navigator.pushReplacementNamed(context, '/perizinan');
