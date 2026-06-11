@@ -33,7 +33,9 @@ import 'package:busguide/controllers/detail_wisata_controller.dart';
 import 'package:busguide/controllers/detail_po_bus_controller.dart';
 import 'package:busguide/controllers/notifikasi_controller.dart';
 
-// Placeholder Admin Dashboard
+// ─── PLACEHOLDER DASHBOARD ADMIN ──────────────────────────────────
+// Kelas penampung sementara jika user login dengan role 'admin'.
+// Sistem rute akan mengarahkan user ke halaman ini.
 class AdminDashboardPlaceholder extends StatelessWidget {
   const AdminDashboardPlaceholder({super.key});
 
@@ -56,6 +58,8 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
+        // Mendaftarkan Controller ke memori aplikasi (State Management)
+        // Sehingga seluruh widget bisa mengakses variabel dan fungsi di dalamnya
         ChangeNotifierProvider(create: (_) => AuthController()),
         ChangeNotifierProvider(create: (_) => HomeController()),
         ChangeNotifierProvider(create: (_) => HalteController()),
@@ -82,7 +86,7 @@ class MyApp extends StatelessWidget {
       title: 'BusGuide',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      initialRoute: '/',
+      initialRoute: '/', // Menjadikan SplashScreen sebagai halaman pertama
       routes: {
         '/': (context) => const SplashScreen(),
         '/perizinan': (context) => const PerizinanPage(),
@@ -91,7 +95,10 @@ class MyApp extends StatelessWidget {
         '/navigasi': (context) => const NavigasiScreen(),
         '/navigasi_aktif': (context) => const NavigasiAktifScreen(),
         '/riwayat': (context) => const RiwayatPerjalananScreen(),
+        
+        // ─── RUTE DASHBOARD USER (BERANDA) ─────────────────────────
         '/user': (context) {
+          // Mengambil argumen indeks tab (misal ingin langsung buka tab Navigasi)
           final args = ModalRoute.of(context)?.settings.arguments;
           final initialIndex = args is int ? args : 0;
           return MainScreen(initialIndex: initialIndex);
@@ -135,6 +142,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _switchTab(int index) {
+    // Mengubah indeks tab yang aktif agar UI digambar ulang
     setState(() => _currentIndex = index);
   }
 
@@ -144,6 +152,8 @@ class _MainScreenState extends State<MainScreen> {
     return TabSwitcher( 
       switchTab: _switchTab,
       child: Scaffold(
+        // ─── PENGGUNAAN INDEXEDSTACK ──────────────────────────────
+        // Digunakan agar ketika user pindah tab, state (scroll, data) tidak hilang/reset
         body: IndexedStack(
           index: _currentIndex,
           children: const [

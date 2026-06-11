@@ -15,6 +15,7 @@ class AuthService {
     required String password,
   }) async {
     try {
+      // Autentikasi email dan sandi ke Supabase Auth
       final response = await _supabase.auth.signInWithPassword(
         email: email,
         password: password,
@@ -23,7 +24,7 @@ class AuthService {
       final user = response.user;
       if (user == null) throw Exception('Login gagal');
 
-      // Ambil role dari tabel profiles
+      // Ambil kelengkapan data (termasuk role) dari tabel 'profiles'
       final profileData = await _supabase
           .from('profiles')
           .select('id, nama, email, role, avatar_url, no_hp, alamat, status_akun, last_login')
@@ -47,14 +48,16 @@ class AuthService {
   // ─── LOGIN GOOGLE ──────────────────────────────────────────────
   Future<Map<String, dynamic>> loginGoogle({bool isRegister = false}) async {
     try {
+      // Munculkan Pop-up akun Google
       final googleUser = await _googleSignIn.signIn();
       if (googleUser == null) throw Exception('Dibatalkan oleh pengguna');
 
-      // Cek apakah email sudah terdaftar menggunakan RPC
+      // Keamanan Ekstra: Cek via fungsi SQL (RPC) apakah email sudah terdaftar
       final emailExists = await _supabase.rpc('check_email_exists', params: {
         'check_email': googleUser.email,
       }) as bool;
 
+      // Logika Penolakan berdasarkan niat Login/Daftar
       if (!isRegister && !emailExists) {
         await _googleSignIn.signOut();
         throw Exception('Akun belum terdaftar. Silakan daftar terlebih dahulu.');
@@ -65,12 +68,14 @@ class AuthService {
         throw Exception('Akun sudah terdaftar. Silakan masuk (login).');
       }
 
+      // Ambil token rahasia dari Google
       final googleAuth = await googleUser.authentication;
       final accessToken = googleAuth.accessToken;
       final idToken = googleAuth.idToken;
 
       if (idToken == null) throw Exception('Tidak ada ID Token dari Google');
 
+      // Serahkan token tersebut ke Supabase Auth
       final response = await _supabase.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
@@ -80,7 +85,9 @@ class AuthService {
       final user = response.user;
       if (user == null) throw Exception('Login Supabase gagal');
 
-      // Ambil profile dengan retry karena DB trigger insert ke 'profiles' butuh waktu
+      // LOGIKA RETRY (Penting!):
+      // Saat akun Google baru dibuat, Supabase butuh persekian detik untuk menjalankan Trigger
+      // yang otomatis menyalin data dari auth.users ke tabel public.profiles.
       Map<String, dynamic>? profileData;
       for (int i = 0; i < 3; i++) {
         profileData = await _supabase
@@ -93,7 +100,7 @@ class AuthService {
       }
 
       if (profileData == null) {
-        // Fallback: Coba insert manual jika trigger Supabase gagal (mungkin karena field nama null pada metadata Google)
+        // Fallback: Coba insert manual jika trigger Supabase gagal
         final newProfile = {
           'id': user.id,
           'nama': googleUser.displayName ?? 'Pengguna Google',
@@ -130,6 +137,7 @@ class AuthService {
     required String password,
   }) async {
     try {
+      // Supabase secara otomatis membuat akun di auth.users
       final response = await _supabase.auth.signUp(
         email: email,
         password: password,
@@ -139,7 +147,7 @@ class AuthService {
       final user = response.user;
       if (user == null) throw Exception('Register gagal');
 
-      // Insert ke tabel 'profiles' ditangani oleh Database Trigger di Supabase.
+      // PENTING: Insert ke tabel 'profiles' ditangani otomatis oleh Database Trigger di sisi server Supabase.
       return user;
     } on AuthException catch (e) {
       throw Exception(e.message);
@@ -219,6 +227,7 @@ class AuthService {
   // ─── RESET PASSWORD (KIRIM OTP) ─────────────────────────
   Future<void> resetPassword({required String email}) async {
     try {
+      // Fungsi bawaan Supabase: Mengirim email OTP 6-digit
       await _supabase.auth.resetPasswordForEmail(email);
     } on AuthException catch (e) {
       throw Exception(e.message);
@@ -234,7 +243,8 @@ class AuthService {
     required String newPassword,
   }) async {
     try {
-      // Verifikasi OTP
+      // LANGKAH 1: Verifikasi OTP
+      // OtpType.recovery sangat penting agar server tahu ini OTP untuk lupa sandi.
       final response = await _supabase.auth.verifyOTP(
         email: email,
         token: otp,
@@ -245,7 +255,9 @@ class AuthService {
         throw Exception('Kode OTP tidak valid atau kedaluwarsa');
       }
 
-      // Setelah berhasil verifikasi OTP, sesi recovery tercipta. Kita bisa update password.
+      // LANGKAH 2: Update Password
+      // Setelah berhasil memverifikasi OTP, "sesi recovery" sementara otomatis tercipta. 
+      // Kita diizinkan menimpa atribut password user tersebut.
       await _supabase.auth.updateUser(
         UserAttributes(password: newPassword),
       );

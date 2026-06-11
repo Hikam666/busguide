@@ -342,13 +342,13 @@ class NavigasiAktifController extends ChangeNotifier {
   void mulaiLacakGps() {
     _gpsStream?.cancel();
 
-    // Mengonfigurasi lokasi untuk akurasi terbaik dan update realtime
+    // 1. Konfigurasi hardware GPS ke mode "Akurasi Terbaik / Navigasi"
     LocationSettings locationSettings;
     if (defaultTargetPlatform == TargetPlatform.android) {
       locationSettings = AndroidSettings(
         accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 0,
-        intervalDuration: const Duration(seconds: 1),
+        distanceFilter: 0, // 0 = Laporkan sekecil apapun pergerakan pengguna
+        intervalDuration: const Duration(seconds: 1), // Refresh setiap detik
       );
     } else if (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS) {
       locationSettings = AppleSettings(
@@ -364,6 +364,7 @@ class NavigasiAktifController extends ChangeNotifier {
       );
     }
 
+    // 2. Berlangganan (Listen) ke pancaran sinyal satelit GPS
     _gpsStream = Geolocator.getPositionStream(
       locationSettings: locationSettings,
     ).listen((Position pos) async {
@@ -375,10 +376,10 @@ class NavigasiAktifController extends ChangeNotifier {
       final idRute = _perjalananAktif?.rute?.id;
       final isBebasOrMandiri = idRute == 0 || _perjalananAktif?.id == -999;
 
-      // Potong polyline di belakang secara mulus
+      // 3. Potong garis (polyline) yang sudah terlewati di belakang mobil agar peta bersih
       final distanceToRoute = _sliceRouteFromCurrentLocation();
 
-      // Trigger rerouting otomatis jika keluar jalur > 50 meter
+      // 4. AUTO REROUTING: Jika jarak menyimpang > 50 meter, panggil OSRM bikin rute baru
       if (_originalRoutePolyline.isNotEmpty && distanceToRoute > 50.0) {
         if (_userBelumDiHalteAsal && startHalt != null) {
           recalculateRoute(target: LatLng(startHalt.latitude, startHalt.longitude));
@@ -396,7 +397,7 @@ class NavigasiAktifController extends ChangeNotifier {
         );
 
         if (distToAsal <= 100) {
-          // Tiba di halte asal! Transisi ke naik bus.
+          // Tiba di halte asal! Matikan rute jalan kaki hijau, transisi murni ke jalur bus biru.
           _userBelumDiHalteAsal = false;
           _isLoading = true;
           notifyListeners();
@@ -426,9 +427,10 @@ class NavigasiAktifController extends ChangeNotifier {
         _sisaMenitTiba = (jarak / _kecepatanMps / 60).ceil();
         if (_sisaMenitTiba < 1) _sisaMenitTiba = 1;
 
+        // 5. LOGIKA ALARM HAMPIR SAMPAI
         if (jarak < 500 && !_isAlmostThere) {
           _isAlmostThere = true;
-          // Trigger Notifikasi Alarm jika aktif
+          // Trigger Notifikasi Bawaan HP (Ring/Vibrate) jika switch alarm menyala
           if (_perjalananAktif!.alarmAktif && !_alarmTriggered) {
             _alarmTriggered = true;
             NotificationService.showNotification(
@@ -447,7 +449,7 @@ class NavigasiAktifController extends ChangeNotifier {
     });
   }
 
-  // ─── SLICE ROUTE FROM CURRENT LOCATION ────────────────────
+  // ─── ALGORITMA SNAP-TO-ROAD & PENGHAPUSAN GARIS BELAKANG ───
   double _sliceRouteFromCurrentLocation() {
     if (_originalRoutePolyline.isEmpty) {
       _firstPartPolyline = [];
@@ -459,6 +461,7 @@ class NavigasiAktifController extends ChangeNotifier {
     int closestIndex = _lastPassedRouteIndex;
     double minDistance = double.infinity;
 
+    // Looping koordinat garis biru dari titik terakhir yang dilewati sampai ujung
     for (int i = _lastPassedRouteIndex; i < _originalRoutePolyline.length; i++) {
       final dist = Geolocator.distanceBetween(
         _lokasiSaatIni.latitude,
@@ -466,15 +469,18 @@ class NavigasiAktifController extends ChangeNotifier {
         _originalRoutePolyline[i].latitude,
         _originalRoutePolyline[i].longitude,
       );
+      // Mencari indeks array garis yang meternya paling dekat dengan ban mobil/GPS saat ini
       if (dist < minDistance) {
         minDistance = dist;
         closestIndex = i;
       }
     }
 
+    // Simpan titik terdekat tersebut di memori
     _lastPassedRouteIndex = closestIndex;
 
     if (closestIndex != -1 && closestIndex < _originalRoutePolyline.length) {
+      // Potong array (Sublist): Buang array di belakang closestIndex.
       final remaining = _originalRoutePolyline.sublist(closestIndex);
       _titikPolyline = [_lokasiSaatIni, ...remaining];
 

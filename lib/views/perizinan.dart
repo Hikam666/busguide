@@ -99,12 +99,15 @@ class _TombolIzinkanState extends State<_TombolIzinkan> {
   Future<void> _mintaIzinLokasi() async {
     setState(() => _isLoading = true);
     try {
+      // Cek status izin saat ini
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
+        // Munculkan Pop-Up OS meminta izin lokasi
         permission = await Geolocator.requestPermission();
       }
 
       if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+        // Lolos! Lanjut cek status login
         if (mounted) _lanjutkan(context);
       } else {
         if (mounted) {
@@ -119,6 +122,7 @@ class _TombolIzinkanState extends State<_TombolIzinkan> {
   }
 
   Future<void> _lanjutkan(BuildContext context) async {
+    // Pengecekan sesi persis seperti di Splash Screen
     final session = await AuthService().getActiveSession();
     if (!context.mounted) return;
     if (session == null) {

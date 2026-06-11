@@ -96,7 +96,7 @@ class HomeController extends ChangeNotifier {
       final semuaHalte = await _halteService.getSemuaHalte();
       if (semuaHalte.isEmpty) return null;
 
-      // Hitung jarak ke semua halte
+      // Hitung jarak garis lurus dari lokasi ini ke semua halte menggunakan Haversine (Geolocator)
       final halteWithJarak = semuaHalte.map((h) {
         final jarak = Geolocator.distanceBetween(
           lokasi.latitude,
@@ -107,11 +107,12 @@ class HomeController extends ChangeNotifier {
         return h.withJarak(jarak);
       }).toList();
 
-      // Urutkan dan ambil terdekat
+      // Urutkan list halte dari yang meternya terkecil (Terdekat) ke terjauh
       halteWithJarak.sort(
         (a, b) => (a.jarakMeter ?? 0).compareTo(b.jarakMeter ?? 0),
       );
 
+      // Kembalikan urutan pertama (yang paling dekat)
       return halteWithJarak.isNotEmpty ? halteWithJarak.first : null;
     } catch (_) {
       return null;
@@ -157,7 +158,7 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Geocode destinasi
+      // 1. Ubah teks pencarian menjadi koordinat GPS via API Nominatim
       final destinasiLatLng = await _geocodeLokasi(destinasiQuery);
       if (destinasiLatLng == null) {
         _searchError = 'Lokasi "$destinasiQuery" tidak ditemukan';
@@ -166,7 +167,7 @@ class HomeController extends ChangeNotifier {
         return null;
       }
 
-      // 2. Cari halte terdekat ke destinasi
+      // 2. Cari halte terdekat dengan tujuan (Sebagai halte tempat Turun)
       final halteTujuan = await _cariHalteTerdekat(destinasiLatLng);
       if (halteTujuan == null) {
         _searchError = 'Tidak ada halte ditemukan di dekat lokasi tersebut';
@@ -175,7 +176,7 @@ class HomeController extends ChangeNotifier {
         return null;
       }
 
-      // 3. Cari halte terdekat ke user GPS (asal)
+      // 3. Cari titik GPS User, lalu cari halte terdekat dengannya (Sebagai halte Naik)
       final lokasiUser = await _dapatkanLokasiUser();
       if (lokasiUser == null) {
         _searchError = 'Tidak dapat mengakses lokasi Anda';

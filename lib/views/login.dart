@@ -215,22 +215,27 @@ class _TombolLupaSandi extends StatelessWidget {
       alignment: Alignment.centerRight,
       child: TextButton(
         onPressed: () {
+          // Menyiapkan controller input untuk pop-up Lupa Sandi
           final emailController = TextEditingController();
           final otpController = TextEditingController();
           final passwordController = TextEditingController();
+          // Variabel state lokal (khusus untuk pop-up ini)
           bool isEmailSent = false;
           bool isLoading = false;
 
           showDialog(
             context: context,
             barrierDismissible: false,
+            // Menggunakan StatefulBuilder agar dialog bisa re-render UI-nya sendiri
             builder: (ctx) => StatefulBuilder(
               builder: (context, setStateDialog) {
                 return AlertDialog(
+                  // Judul dinamis bergantung pada tahap pengiriman email
                   title: Text(isEmailSent ? 'Masukkan OTP' : 'Reset Password'),
                   content: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // ─── TAHAP 1: SEBELUM EMAIL DIKIRIM ───
                       if (!isEmailSent) ...[
                         const Text('Kode OTP 6-digit akan dikirimkan ke email Anda.'),
                         const SizedBox(height: 16),
@@ -243,6 +248,7 @@ class _TombolLupaSandi extends StatelessWidget {
                           ),
                           keyboardType: TextInputType.emailAddress,
                         ),
+                      // ─── TAHAP 2: SETELAH EMAIL DIKIRIM (INPUT OTP) ───
                       ] else ...[
                         const Text('Cek kotak masuk email Anda untuk kode OTP.'),
                         const SizedBox(height: 16),
@@ -285,7 +291,7 @@ class _TombolLupaSandi extends StatelessWidget {
                               setStateDialog(() => isLoading = true);
 
                               if (!isEmailSent) {
-                                // TAHAP 1: KIRIM EMAIL
+                                // ─── TAHAP 1: PROSES KIRIM EMAIL ───
                                 final success = await ctrl.resetPassword(emailController.text);
                                 setStateDialog(() {
                                   isLoading = false;
@@ -300,7 +306,7 @@ class _TombolLupaSandi extends StatelessWidget {
                                   );
                                 }
                               } else {
-                                // TAHAP 2: VERIFIKASI OTP & RESET PASSWORD
+                                // ─── TAHAP 2: VERIFIKASI OTP & RESET PASSWORD ───
                                 final success = await ctrl.verifyOtpAndResetPassword(
                                   email: emailController.text,
                                   otp: otpController.text,
@@ -317,8 +323,8 @@ class _TombolLupaSandi extends StatelessWidget {
                                         backgroundColor: Colors.green,
                                       ),
                                     );
-                                    // Arahkan ke rute user (atau admin) setelah reset (otomatis login)
-                                    // Biasanya kita bisa biarkan user refresh auth state atau pushNamed
+                                    // Karena Supabase otomatis memvalidasi sesi jika OTP benar,
+                                    // user bisa langsung dilempar ke Beranda tanpa login ulang.
                                     Navigator.pushReplacementNamed(context, '/user');
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(

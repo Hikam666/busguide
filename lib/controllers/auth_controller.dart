@@ -32,21 +32,25 @@ class AuthController extends ChangeNotifier {
     required String email,
     required String password,
   }) async {
+    // Validasi form tidak boleh kosong
     if (email.trim().isEmpty || password.trim().isEmpty) {
       _setError('Email dan password tidak boleh kosong');
       return null;
     }
 
+    // Nyalakan loading UI
     _setLoading(true);
     _setError(null);
 
     try {
+      // Panggil Model (AuthService)
       final result = await _authService.login(
         email: email.trim(),
         password: password.trim(),
       );
       return result['role'] as String?;
     } catch (e) {
+      // Bersihkan teks error bawaan sistem agar rapi dibaca user
       _setError(e.toString().replaceAll('Exception: ', ''));
       return null;
     } finally {
@@ -94,6 +98,7 @@ class AuthController extends ChangeNotifier {
     required String password,
     required String konfirmasiPassword,
   }) async {
+    // Validasi input tidak boleh ada yang kosong
     if (nama.trim().isEmpty ||
         email.trim().isEmpty ||
         password.trim().isEmpty) {
@@ -101,11 +106,13 @@ class AuthController extends ChangeNotifier {
       return false;
     }
 
+    // Validasi kecocokan konfirmasi sandi
     if (password != konfirmasiPassword) {
       _setError('Password dan konfirmasi password tidak sama');
       return false;
     }
 
+    // Standar keamanan Supabase minimal 6 karakter
     if (password.length < 6) {
       _setError('Password minimal 6 karakter');
       return false;
@@ -146,6 +153,7 @@ class AuthController extends ChangeNotifier {
     _setError(null);
 
     try {
+      // Meminta server mengirim OTP ke email
       await _authService.resetPassword(email: email.trim());
       return true;
     } catch (e) {
@@ -176,6 +184,7 @@ class AuthController extends ChangeNotifier {
     _setError(null);
 
     try {
+      // Tukar OTP dengan Sesi, lalu timpa password
       await _authService.verifyOtpAndResetPassword(
         email: email.trim(),
         otp: otp.trim(),

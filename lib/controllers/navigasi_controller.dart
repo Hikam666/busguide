@@ -124,7 +124,9 @@ class NavigasiController extends ChangeNotifier {
 
   Halte _cariHalteTerdekat() {
     if (_semuaHalte.isEmpty) return Halte.lokasiSaatIni(_lokasiSaatIni.latitude, _lokasiSaatIni.longitude);
+    // Menggunakan library latlong2 (Distance) untuk mencari jarak absolut
     const dist = Distance();
+    // Reduce akan melooping dan mempertahankan halte dengan nilai jarak terkecil
     return _semuaHalte.reduce((a, b) {
       final dA = dist.as(LengthUnit.Meter, _lokasiSaatIni, LatLng(a.latitude, a.longitude));
       final dB = dist.as(LengthUnit.Meter, _lokasiSaatIni, LatLng(b.latitude, b.longitude));
@@ -146,11 +148,11 @@ class NavigasiController extends ChangeNotifier {
 
     try {
       if (_halteAsal!.id == 0) {
-        // Mode Lokasi Saat Ini -> Halte
+        // LOGIKA 1: JIKA ASAL ADALAH "LOKASI SAAT INI" (GPS)
         final nearestHalte = _cariHalteTerdekat();
         
         if (nearestHalte.id == _halteTujuan!.id) {
-          // Hanya menuju halte terdekat (tidak naik bus)
+          // Kasus: User sangat dekat dengan tujuan akhirnya, cukup jalan kaki tanpa bus
           _ruteTersedia = [
             const Rute(id: 0, kode: 'LOKAL', nama: 'Menuju Halte')
           ];
@@ -160,7 +162,7 @@ class NavigasiController extends ChangeNotifier {
           ];
           await _loadPolyline(0);
         } else {
-          // Menuju halte terdekat lalu naik bus
+          // Kasus: Jalan kaki ke halte terdekat, baru naik bus dari halte itu
           final rute = await _ruteService.cariRute(
             idHalteAsal: nearestHalte.id,
             idHalteTujuan: _halteTujuan!.id,
@@ -176,6 +178,8 @@ class NavigasiController extends ChangeNotifier {
             ];
             await _loadPolyline(0);
           } else {
+            // Logika pemotongan (slicing) daftar urutan halte
+            // Agar UI hanya menampilkan halte yang dilewati saja
             final realHalteRute = await _halteService.getHalteByRute(rute.first.id);
             int indexAsal = realHalteRute.indexWhere((rh) => rh.halte.id == nearestHalte.id);
             int indexTujuan = realHalteRute.indexWhere((rh) => rh.halte.id == _halteTujuan!.id);
@@ -197,7 +201,7 @@ class NavigasiController extends ChangeNotifier {
           }
         }
       } else {
-        // Mode normal: Halte -> Halte
+        // LOGIKA 2: JIKA ASAL DAN TUJUAN ADALAH HALTE NORMAL (FISIK)
         final rute = await _ruteService.cariRute(
           idHalteAsal: _halteAsal!.id,
           idHalteTujuan: _halteTujuan!.id,
@@ -398,7 +402,8 @@ class NavigasiController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Dapatkan bagian 1: dari GPS ke _halteAsal (jika jarak > 100m dan _halteAsal bukan Lokasi Saat Ini)
+      // BAGIAN 1: JALAN KAKI (Dari GPS ke _halteAsal)
+      // Jika jaraknya masih jauh (> 100m) dan _halteAsal bukan "Lokasi Saat Ini", minta OSRM bikin rute jalan kaki
       List<LatLng> firstPart = [];
       bool needsFirstPart = false;
 
@@ -426,23 +431,25 @@ class NavigasiController extends ChangeNotifier {
         }
       }
 
-      // 2. Dapatkan bagian 2: dari _halteAsal ke _halteTujuan (Jalur Bus)
+      // BAGIAN 2: JALUR BUS BIRU (Dari Halte Naik ke Halte Turun)
       List<LatLng> secondPart = [];
       if (idRute > 0) {
-        // Coba dapatkan rute dari database titik_rute terlebih dahulu
+        // Mengambil kumpulan koordinat mentah rute trayek dari database
         final titikDB = await _ruteService.getTitikRute(idRute);
         if (titikDB.length >= 2) {
           final List<LatLng> rawPoints =
               titikDB.map((t) => LatLng(t.latitude, t.longitude)).toList();
           final List<LatLng> slicedDbPoints;
           if (_halteAsal != null && _halteTujuan != null && _halteAsal!.id != 0) {
+            // Potong dan buang jalur database yang berada di luar area tujuan
             slicedDbPoints = _sliceRouteCoordinates(rawPoints, _halteAsal!, _halteTujuan!);
           } else {
             slicedDbPoints = PolylineUtils.simplify(rawPoints, tolerance: 0.00015);
           }
 
           if (slicedDbPoints.length >= 2) {
-            // Haluskan koordinat database mengikuti jalan menggunakan OSRM API
+            // HALUSKAN JALUR (Snap-to-road)
+            // Ambil sampel ~25 titik dari database, lempar ke OSRM agar garis melengkung pas di aspal jalan raya.
             final waypoints = _sampleWaypoints(slicedDbPoints, maxPoints: 25);
             final routeData = await _osrmRoutesService.getRoute(waypoints);
             if (routeData != null && routeData.polyline.isNotEmpty) {

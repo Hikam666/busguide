@@ -24,11 +24,13 @@ class _SplashScreenState extends State<SplashScreen>
   void initState() {
     super.initState();
 
+    // Membuat controller animasi dengan durasi 1.2 detik
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
 
+    // Animasi transisi memudar (tembus pandang ke terlihat jelas)
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
@@ -36,6 +38,7 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
+    // Animasi skala/zoom in (dari kecil ke ukuran asli)
     _scaleAnimation = Tween<double>(begin: 0.75, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
@@ -50,24 +53,26 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _cekPerizinanDanSession() async {
-    // 1. Cek izin lokasi
+    // 1. Cek izin lokasi GPS saat ini
     LocationPermission permission = await Geolocator.checkPermission();
+    // Mencegah error jika widget keburu ditutup sebelum proses selesai
     if (!mounted) return;
 
     if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-      // Belum ada izin -> ke halaman perizinan
+      // Jika belum ada izin -> paksa ke halaman perizinan secara permanen
       Navigator.pushReplacementNamed(context, '/perizinan');
       return;
     }
 
-    // 2. Jika sudah ada izin, cek session login
+    // 2. Jika sudah ada izin, cek apakah user punya sesi login yang masih aktif
     final session = await _authService.getActiveSession();
     if (!mounted) return;
 
     if (session == null) {
-      // Belum login
+      // Jika session null (belum login), arahkan ke halaman Login
       Navigator.pushReplacementNamed(context, '/login');
     } else {
+      // Jika sudah login, baca role untuk menentukan dashboard
       final role = session['role'];
       if (role == 'admin') {
         Navigator.pushReplacementNamed(context, '/admin');

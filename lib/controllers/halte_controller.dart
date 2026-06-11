@@ -64,9 +64,11 @@ class HalteController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Pengecekan hardware: Apakah sensor GPS HP hidup?
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) throw Exception('GPS mati');
 
+      // Pengecekan software: Apakah BusGuide diizinkan membaca lokasi?
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -78,6 +80,7 @@ class HalteController extends ChangeNotifier {
         throw Exception('Izin ditolak permanen');
       }
 
+      // Ambil titik koordinat saat ini
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
@@ -87,6 +90,7 @@ class HalteController extends ChangeNotifier {
       _pakaiGps = true;
       notifyListeners();
 
+      // Memicu kalkulasi halte terdekat setiap kali lokasi GPS didapatkan
       hitungHalteTerdekat();
     } catch (_) {
       _labelLokasi = 'Gagal mengambil GPS';
@@ -102,6 +106,7 @@ class HalteController extends ChangeNotifier {
   void hitungHalteTerdekat() {
     if (_semuaHalte.isEmpty) return;
 
+    // Perulangan map untuk menghitung metrik jarak ke setiap halte di kota
     final halteWithJarak = _semuaHalte.map((h) {
       final jarak = Geolocator.distanceBetween(
         _titikPusat.latitude,
@@ -112,10 +117,12 @@ class HalteController extends ChangeNotifier {
       return h.withJarak(jarak);
     }).toList();
 
+    // Menyortir dari jarak terdekat
     halteWithJarak.sort(
       (a, b) => (a.jarakMeter ?? 0).compareTo(b.jarakMeter ?? 0),
     );
 
+    // Memotong list dan hanya mengambil 5 urutan teratas
     _halteTerdekat = halteWithJarak.take(5).toList();
     notifyListeners();
   }
