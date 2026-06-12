@@ -12,13 +12,17 @@ import 'package:busguide/models/wisata.dart';
 import 'package:busguide/models/halte.dart';
 
 class HomeController extends ChangeNotifier {
+  // Mengimpor service untuk berinteraksi dengan database
   final _perjalananService = PerjalananService();
   final _wisataService = WisataService();
   final _halteService = HalteService();
 
+  // Variabel untuk menyimpan data yang akan ditampilkan di layar
   List<Perjalanan> _riwayatList = [];
   List<Wisata> _rekomendasiList = [];
   Perjalanan? _perjalananAktif;
+  
+  // Variabel status loading dan error
   bool _isLoading = true;
   bool _isSearching = false;
   String _searchError = '';
@@ -33,18 +37,19 @@ class HomeController extends ChangeNotifier {
   String get searchError => _searchError;
 
   // ─── LOAD DATA ────────────────────────────────────────────
+  /// Memuat semua data awal yang dibutuhkan oleh layar Beranda
   Future<void> loadData() async {
     _isLoading = true;
     notifyListeners();
 
-    // 1. Ambil perjalanan aktif (jika ada)
+    // 1. Cek apakah pengguna memiliki perjalanan yang belum diselesaikan
     try {
       _perjalananAktif = await _perjalananService.getPerjalananAktif();
     } catch (e) {
       debugPrint('HomeController: Error loading active journey: $e');
     }
 
-    // 2. Ambil riwayat perjalanan
+    // 2. Ambil riwayat perjalanan masa lalu untuk daftar "Riwayat Perjalanan"
     try {
       final riwayat = await _perjalananService.getRiwayatPerjalanan();
       _riwayatList = riwayat.take(2).toList(); // Tampilkan 2 riwayat terakhir
@@ -52,7 +57,7 @@ class HomeController extends ChangeNotifier {
       debugPrint('HomeController: Error loading trip history: $e');
     }
 
-    // 3. Ambil rekomendasi wisata
+    // 3. Ambil daftar tempat wisata untuk daftar geser horizontal
     try {
       final wisata = await _wisataService.getSemuaWisata();
       _rekomendasiList = wisata.take(3).toList(); // Tampilkan 3 rekomendasi
@@ -65,10 +70,12 @@ class HomeController extends ChangeNotifier {
   }
 
   // ─── GEOCODE LOKASI (cari lokasi dari text) ──────────────
+  /// Mengubah teks nama tempat (misal: "Gadang") menjadi koordinat Peta
   Future<LatLng?> _geocodeLokasi(String query) async {
     if (query.trim().isEmpty) return null;
 
     try {
+      // Memanggil API Publik Nominatim (OpenStreetMap) secara gratis
       final uri = Uri.parse(
         'https://nominatim.openstreetmap.org/search'
         '?q=${Uri.encodeComponent(query)}&format=json&limit=1',
@@ -79,6 +86,7 @@ class HomeController extends ChangeNotifier {
 
       if (response.statusCode != 200) return null;
 
+      // Mengambil data pertama dari hasil pencarian JSON
       final results = jsonDecode(response.body) as List;
       if (results.isEmpty) return null;
 
@@ -91,12 +99,14 @@ class HomeController extends ChangeNotifier {
   }
 
   // ─── CARI HALTE TERDEKAT DARI LOKASI ──────────────────────
+  /// Mencari 1 halte fisik terdekat dari sebuah titik koordinat acak
   Future<Halte?> _cariHalteTerdekat(LatLng lokasi) async {
     try {
+      // Ambil daftar seluruh halte di kota Malang dari database
       final semuaHalte = await _halteService.getSemuaHalte();
       if (semuaHalte.isEmpty) return null;
 
-      // Hitung jarak garis lurus dari lokasi ini ke semua halte menggunakan Haversine (Geolocator)
+      // Hitung jarak garis lurus (Haversine) dari titik acak tersebut ke setiap halte
       final halteWithJarak = semuaHalte.map((h) {
         final jarak = Geolocator.distanceBetween(
           lokasi.latitude,
@@ -120,11 +130,14 @@ class HomeController extends ChangeNotifier {
   }
 
   // ─── DAPATKAN LOKASI USER (GPS) ──────────────────────────
+  /// Meminta sensor GPS HP untuk memberikan koordinat pengguna saat ini
   Future<LatLng?> _dapatkanLokasiUser() async {
     try {
+      // Pengecekan hardware GPS
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) throw Exception('GPS mati');
 
+      // Pengecekan software/Izin Aplikasi
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -133,6 +146,7 @@ class HomeController extends ChangeNotifier {
         }
       }
 
+      // Tembakkan request untuk mendapatkan titik saat ini
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 5),
@@ -145,7 +159,7 @@ class HomeController extends ChangeNotifier {
   }
 
   // ─── MULAI NAVIGASI DARI HOME ────────────────────────────
-  /// Dijalankan saat user input lokasi di search bar
+  /// Dijalankan saat user menekan 'Enter' setelah mengetik di search bar
   /// 1. Geocode destinasi
   /// 2. Cari halte terdekat ke destinasi (tujuan)
   /// 3. Cari halte terdekat ke GPS user (asal)
@@ -158,7 +172,7 @@ class HomeController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Ubah teks pencarian menjadi koordinat GPS via API Nominatim
+      // 1. Geocode: Cari tahu di mana letak persis tempat yang diketik pengguna
       final destinasiLatLng = await _geocodeLokasi(destinasiQuery);
       if (destinasiLatLng == null) {
         _searchError = 'Lokasi "$destinasiQuery" tidak ditemukan';
@@ -167,7 +181,7 @@ class HomeController extends ChangeNotifier {
         return null;
       }
 
-      // 2. Cari halte terdekat dengan tujuan (Sebagai halte tempat Turun)
+      // 2. Halte Turun: Cari halte mana yang letaknya paling dekat dengan tempat tujuan tadi
       final halteTujuan = await _cariHalteTerdekat(destinasiLatLng);
       if (halteTujuan == null) {
         _searchError = 'Tidak ada halte ditemukan di dekat lokasi tersebut';
@@ -176,7 +190,7 @@ class HomeController extends ChangeNotifier {
         return null;
       }
 
-      // 3. Cari titik GPS User, lalu cari halte terdekat dengannya (Sebagai halte Naik)
+      // 3. Halte Naik: Cari tahu lokasi pengguna, lalu cari halte yang paling dekat dengan pengguna
       final lokasiUser = await _dapatkanLokasiUser();
       if (lokasiUser == null) {
         _searchError = 'Tidak dapat mengakses lokasi Anda';
@@ -196,6 +210,7 @@ class HomeController extends ChangeNotifier {
       _isSearching = false;
       notifyListeners();
 
+      // Kembalikan pasangan Halte Naik dan Halte Turun ke UI untuk diteruskan ke Tab Navigasi
       return (halteAsal: halteAsal, halteTujuan: halteTujuan);
     } catch (e) {
       _searchError = 'Terjadi kesalahan: ${e.toString()}';

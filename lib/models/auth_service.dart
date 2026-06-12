@@ -20,25 +20,25 @@ class AuthService {
         email: email,
         password: password,
       );
-      // Baris 2: Mengambil objek user dari hasil balikan Supabase.
+      //Mengambil objek user dari hasil balikan Supabase.
       final user = response.user;
       if (user == null) throw Exception('Login gagal');
 
-      // Ambil kelengkapan data (termasuk role) dari tabel 'profiles'
+      // Ambil kelengkapan datadari tabel 'profiles'
       final profileData = await _supabase
           .from('profiles')
           .select('id, nama, email, role, avatar_url, no_hp, alamat, status_akun, last_login')
           .eq('id', user.id)
           .single();
-      // Baris 10: Mengubah data JSON (Map) dari database menjadi objek class UserProfile.
+      //Mengubah data JSON (Map) dari database menjadi objek class UserProfile.
       final profile = UserProfile.fromMap(profileData);
-      // Baris 11-15: Mengembalikan Map (Kamus) yang berisi data auth, profil, dan role (peran) pengguna.
+      //Mengembalikan data yang berisi data auth, profil, dan role (peran) pengguna.
       return {
         'user': user,
         'profile': profile,
         'role': profile.role,
       };
-    // Baris 16-20: Penanganan Error. AuthException untuk error spesifik Supabase (misal: password salah), 
+    // Penanganan Error. AuthException untuk error spesifik Supabase (misal: password salah), 
     // catch umum untuk error jaringan/database.
     } on AuthException catch (e) {
       throw Exception(e.message);
@@ -87,7 +87,6 @@ class AuthService {
       final user = response.user;
       if (user == null) throw Exception('Login Supabase gagal');
 
-      // LOGIKA RETRY (Penting!):
       // Saat akun Google baru dibuat, Supabase butuh persekian detik untuk menjalankan Trigger
       // yang otomatis menyalin data dari auth.users ke tabel public.profiles.
       Map<String, dynamic>? profileData;

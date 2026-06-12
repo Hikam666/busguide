@@ -7,7 +7,7 @@ class AuthController extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
-  // ─── GETTERS ─────────────────────────────────────────────
+  // ─── GETTERS
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -26,7 +26,7 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ─── LOGIN ───────────────────────────────────────────────
+  // ─── LOGIN 
   /// Mengembalikan role user ('admin' | 'pengguna') atau null jika gagal
   Future<String?> login({
     required String email,

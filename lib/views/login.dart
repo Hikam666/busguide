@@ -237,7 +237,7 @@ class _TombolLupaSandi extends StatelessWidget {
                     children: [
                       // ─── TAHAP 1: SEBELUM EMAIL DIKIRIM ───
                       if (!isEmailSent) ...[
-                        const Text('Kode OTP 6-digit akan dikirimkan ke email Anda.'),
+                        const Text('Kode OTP (8 Karakter) akan dikirimkan ke email Anda.'),
                         const SizedBox(height: 16),
                         TextField(
                           controller: emailController,
@@ -254,16 +254,16 @@ class _TombolLupaSandi extends StatelessWidget {
                         const SizedBox(height: 16),
                         TextField(
                           controller: otpController,
-                          maxLength: 6,
+                          maxLength: 8,
                           textAlign: TextAlign.center,
                           style: const TextStyle(letterSpacing: 8, fontSize: 18, fontWeight: FontWeight.bold),
                           decoration: InputDecoration(
-                            hintText: 'Kode 6 Digit',
+                            hintText: 'Kode 8 Karakter',
                             hintStyle: const TextStyle(letterSpacing: 0, fontSize: 14, fontWeight: FontWeight.normal),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           ),
-                          keyboardType: TextInputType.number,
+                          keyboardType: TextInputType.text,
                         ),
                         const SizedBox(height: 12),
                         TextField(

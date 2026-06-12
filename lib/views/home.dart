@@ -14,6 +14,9 @@ import '../templates/notification_sheet.dart';
 
 // ==========================================
 // INHERITED WIDGET — tab switcher dari MainScreen
+// Digunakan agar widget anak (seperti tombol di Beranda) bisa memanggil
+// fungsi ganti tab milik `MainScreen` (yang membungkusnya) tanpa perlu
+// melempar fungsi ke bawah berlapis-lapis (Callback Hell).
 // ==========================================
 class TabSwitcher extends InheritedWidget {
   final void Function(int index) switchTab;
@@ -45,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    // addPostFrameCallback memastikan fungsi dipanggil SETELAH antarmuka selesai digambar 1 frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<HomeController>().loadData();
       context.read<NotifikasiController>().fetchNotifikasi();
@@ -55,12 +59,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      // AnnotatedRegion untuk mengubah warna ikon baterai/sinyal HP di atas layar menjadi putih
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.light,
           statusBarBrightness: Brightness.dark, // iOS
         ),
+        // Consumer untuk memantau perubahan data (loading, dll) dari HomeController
         child: Consumer<HomeController>(
           builder: (context, ctrl, _) => SingleChildScrollView(
             child: Column(
@@ -76,13 +82,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       const _QuickActions(),
                       const SizedBox(height: 28),
                       
-                      // Active Trip Activity Card
+                      // MUNCULKAN KARTU PELACAKAN JIKA SEDANG NAIK BUS
                       if (ctrl.adaPerjalananAktif) ...[
                         _ActiveTripCard(perjalanan: ctrl.perjalananAktif!),
                         const SizedBox(height: 28),
                       ],
                       
-                      // Riwayat Perjalanan
+                      // BAGIAN DAFTAR RIWAYAT PERJALANAN
                       _SectionHeader(
                         title: 'Riwayat perjalanan',
                         actionLabel: 'Lihat Semua',
@@ -105,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             )),
                       const SizedBox(height: 28),
 
-                      // Rekomendasi Wisata
+                      // BAGIAN DAFTAR REKOMENDASI WISATA
                       const Text(
                         'Rekomendasi untukmu',
                         style: TextStyle(
@@ -147,6 +153,7 @@ class _HeroHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Mengambil tinggi lekukan kamera HP (Notch) agar teks tidak tertutup
     final double statusBarHeight = MediaQuery.of(context).padding.top;
     final greeting = _getGreetingText();
     
@@ -252,6 +259,7 @@ class _HeroHeader extends StatelessWidget {
   }
 }
 
+// Fungsi helper untuk menentukan ucapan berdasarkan jam (Waktu Lokal HP)
 class _GreetingData {
   final String title;
   final String subtitle;
@@ -317,6 +325,7 @@ class _SearchBarState extends State<_SearchBar> {
       return;
     }
 
+    // Tutup keyboard dari layar
     FocusScope.of(context).unfocus();
     setState(() => _isSearching = true);
 
@@ -325,6 +334,7 @@ class _SearchBarState extends State<_SearchBar> {
     final switcher = TabSwitcher.maybeOf(context);
 
     try {
+      // Panggil otak pencarian di Controller (Geocoding & Haversine)
       final result = await homeCtrl.setupNavigasi(query);
 
       if (!mounted) return;
@@ -337,12 +347,14 @@ class _SearchBarState extends State<_SearchBar> {
         return;
       }
 
+      // Mengoper halte hasil temuan ke Controller Navigasi agar dipakai di perencana rute
       navCtrl.pilihHalteAsal(result.halteAsal);
       navCtrl.pilihHalteTujuan(result.halteTujuan);
 
       _controller.clear();
       setState(() => _isSearching = false);
 
+      // Pindah paksa ke Tab Layar Navigasi
       if (switcher != null) {
         switcher.switchTab(2); // Tab 2 = NavigasiScreen
       } else {
@@ -574,7 +586,9 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// ── Live Trip Card — Pelacakan Aktif dengan Background Map Asli ────────────────
+// ── KARTU PELACAKAN LIVE MAP AKTIF ──────────────────────────────────────────
+// Kartu ini hanya muncul jika state PerjalananAktif di Controller bernilai True.
+// Menampilkan miniatur peta asli menggunakan plugin FlutterMap.
 class _ActiveTripCard extends StatefulWidget {
   final Perjalanan perjalanan;
 
@@ -585,6 +599,7 @@ class _ActiveTripCard extends StatefulWidget {
 }
 
 class _ActiveTripCardState extends State<_ActiveTripCard> with SingleTickerProviderStateMixin {
+  // Controller animasi untuk membuat lingkaran merah indikator 'LIVE' berdenyut (pulse)
   late AnimationController _pulseController;
   final _mapController = MapController();
   LatLng? _lastCenteredLoc;
@@ -592,6 +607,7 @@ class _ActiveTripCardState extends State<_ActiveTripCard> with SingleTickerProvi
   @override
   void initState() {
     super.initState();
+    // Mengatur animasi berulang bolak-balik (besar-kecil-besar)
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -618,15 +634,16 @@ class _ActiveTripCardState extends State<_ActiveTripCard> with SingleTickerProvi
     final to = widget.perjalanan.halteTujuan?.nama ?? '-';
     final routeCode = widget.perjalanan.rute?.kode ?? '-';
     
-    // Watch navigasi aktif controller
+    // Membaca koordinat real-time dari Controller GPS
     final navAktif = context.watch<NavigasiAktifController>();
     final userLoc = navAktif.lokasiSaatIni;
 
-    // Move map to center on user location if it changes
+    // Logika agar kamera peta otomatis bergerak mengikuti koordinat mobil saat ini
     if (_lastCenteredLoc != userLoc) {
       _lastCenteredLoc = userLoc;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         try {
+          // Pindahkan pandangan peta tanpa efek animasi panjang
           _mapController.move(userLoc, 15.2);
         } catch (_) {}
       });
@@ -656,6 +673,7 @@ class _ActiveTripCardState extends State<_ActiveTripCard> with SingleTickerProvi
               width: double.infinity,
               child: Stack(
                 children: [
+                  // Plugin Peta Utama
                   FlutterMap(
                     mapController: _mapController,
                     options: MapOptions(
@@ -664,10 +682,12 @@ class _ActiveTripCardState extends State<_ActiveTripCard> with SingleTickerProvi
                       interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
                     ),
                     children: [
+                      // Memanggil gambar ubin peta dari server OpenStreetMap
                       TileLayer(
                         urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.busguide.app',
                       ),
+                      // Menempatkan titik lingkaran biru yang berdenyut di lokasi user
                       MarkerLayer(
                         markers: [
                           Marker(
